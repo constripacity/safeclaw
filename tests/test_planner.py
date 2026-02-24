@@ -227,3 +227,79 @@ class TestPlannerWithMockedBackend:
         planner = Planner(planner_policy)
         with pytest.raises(PlanParseError):
             planner.plan("do something")
+
+    def test_plan_empty_steps(
+        self, planner_policy: Policy, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """LLM returns a valid plan with no steps."""
+
+        def mock_call(self, policy, system, user_msg):  # noqa: ARG001
+            return '{"steps": []}'
+
+        from safeclaw.planner import _OllamaBackend
+
+        monkeypatch.setattr(_OllamaBackend, "call", mock_call)
+
+        planner = Planner(planner_policy)
+        plan = planner.plan("nothing to do")
+        assert plan.steps == []
+
+    def test_audit_written_after_plan(
+        self, planner_policy: Policy, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Audit log should be written after a successful plan."""
+
+        def mock_call(self, policy, system, user_msg):  # noqa: ARG001
+            return '{"steps": [{"plugin": "todo_scan", "target": "./", "reason": "scan"}]}'
+
+        from safeclaw.planner import _OllamaBackend
+
+        monkeypatch.setattr(_OllamaBackend, "call", mock_call)
+
+        from safeclaw.audit import read_audit
+
+        planner = Planner(planner_policy)
+        planner.plan("scan for issues")
+
+        entries = read_audit(planner_policy.root_path(), last_n=10)
+        planner_entries = [e for e in entries if e.get("action") == "planner"]
+        assert len(planner_entries) >= 2
+        statuses = {e["status"] for e in planner_entries}
+        assert "request" in statuses
+        assert "ok" in statuses
+
+    def test_plan_with_multiple_steps(
+        self, planner_policy: Policy, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Plan with multiple valid steps."""
+        raw = (
+            '{"steps": ['
+            '{"plugin": "todo_scan", "target": "./", "reason": "scan todos"},'
+            '{"plugin": "secrets_scan", "target": "./", "reason": "check secrets"},'
+            '{"plugin": "repo_stats", "target": "./", "reason": "stats"}'
+            "]}"
+        )
+
+        def mock_call(self, policy, system, user_msg):  # noqa: ARG001
+            return raw
+
+        from safeclaw.planner import _OllamaBackend
+
+        monkeypatch.setattr(_OllamaBackend, "call", mock_call)
+
+        planner = Planner(planner_policy)
+        plan = planner.plan("full scan")
+        assert len(plan.steps) == 3
+        assert [s.plugin for s in plan.steps] == ["todo_scan", "secrets_scan", "repo_stats"]
+
+
+class TestUnknownBackend:
+    def test_unknown_backend_raises(self, tmp_path: Path) -> None:
+        from safeclaw.planner import PlannerError
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            planner=PlannerConfig(enabled=True, backend="unknown_backend"),
+        )
+        with pytest.raises(PlannerError, match="Unknown planner backend"):
+            get_backend(pol)
