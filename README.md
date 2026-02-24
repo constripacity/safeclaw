@@ -76,6 +76,52 @@ limits:
 | `deps_audit` | Check declared dependencies for issues |
 | `repo_stats` | Count files, lines of code, file type distribution |
 
+## LLM Planner (Phase 2)
+
+SafeClaw includes an optional LLM-powered planner that turns natural language tasks into validated execution plans.
+
+```bash
+# Generate and execute a plan
+safeclaw plan "scan this repo for security issues"
+
+# Preview a plan without executing
+safeclaw plan --dry-run "check code quality"
+```
+
+The LLM can only **suggest** actions — SafeClaw validates every step against your policy before anything runs. Supports Ollama (local), OpenAI, and Anthropic backends.
+
+```yaml
+# Enable in policy.yaml:
+planner:
+  enabled: true
+  backend: "ollama"       # or "openai" / "anthropic"
+  model: "qwen2.5-coder:14b"
+  base_url: "http://localhost:11434"
+  max_steps: 5
+  require_confirmation: true
+```
+
+See [docs/planner-guide.md](docs/planner-guide.md) for setup details.
+
+## Web Dashboard (Phase 2)
+
+A localhost-only web UI for monitoring runs, viewing audit logs, and checking policy status.
+
+```bash
+# Start the dashboard
+safeclaw dashboard
+```
+
+Binds to `127.0.0.1:8321` only. Protected by a bearer token generated on first run.
+
+```yaml
+# Enable in policy.yaml:
+dashboard:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8321
+```
+
 ## Why This Exists
 
 Autonomous AI agents (like OpenClaw, PicoClaw, etc.) are powerful but often run with excessive privileges — unrestricted shell access, full disk access, and open network connections. SafeClaw demonstrates that a dev assistant can be **useful without being dangerous**, by enforcing least-privilege security at every layer.

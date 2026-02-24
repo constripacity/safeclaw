@@ -22,14 +22,21 @@ limits:
   max_files: 2000       # Max files to process per scan
   timeout_seconds: 30   # Kill plugin after this
 
-# LLM Planner (Phase 2 — disabled by default)
+# LLM Planner (disabled by default)
 # planner:
 #   enabled: false
 #   backend: "ollama"          # openai | anthropic | ollama
 #   model: "qwen2.5-coder:14b"
 #   base_url: "http://localhost:11434"
+#   api_key_env: ""            # env var name containing API key (e.g. OPENAI_API_KEY)
 #   max_steps: 5
 #   require_confirmation: true
+
+# Web Dashboard (disabled by default)
+# dashboard:
+#   enabled: false
+#   host: "127.0.0.1"         # NEVER 0.0.0.0
+#   port: 8321
 
 # Docker Sandbox (Phase 3 — disabled by default)
 # sandbox:

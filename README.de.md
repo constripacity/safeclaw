@@ -78,6 +78,33 @@ limits:
 | `deps_audit` | Deklarierte Abhangigkeiten auf Probleme prufen |
 | `repo_stats` | Dateien, Codezeilen und Dateityp-Verteilung zahlen |
 
+## LLM-Planner (Phase 2)
+
+SafeClaw enthalt einen optionalen LLM-gesteuerten Planner, der naturlichsprachliche Aufgaben in validierte Ausfuhrungsplane umwandelt.
+
+```bash
+# Plan erstellen und ausfuhren
+safeclaw plan "scanne dieses Repo auf Sicherheitsprobleme"
+
+# Plan anzeigen ohne Ausfuhrung
+safeclaw plan --dry-run "Code-Qualitat prufen"
+```
+
+Das LLM kann nur **vorschlagen** — SafeClaw validiert jeden Schritt gegen die Richtlinie, bevor etwas ausgefuhrt wird. Unterstutzt Ollama (lokal), OpenAI und Anthropic.
+
+Siehe [docs/planner-guide.md](docs/planner-guide.md) fur Einrichtungsdetails.
+
+## Web-Dashboard (Phase 2)
+
+Eine localhost-exklusive Web-Oberflache zur Uberwachung von Laufen, Anzeige von Audit-Logs und Prufung des Richtlinienstatus.
+
+```bash
+# Dashboard starten
+safeclaw dashboard
+```
+
+Bindet nur an `127.0.0.1:8321`. Geschutzt durch einen Bearer-Token, der beim ersten Start generiert wird.
+
 ## Warum dieses Projekt existiert
 
 Autonome KI-Agenten (wie OpenClaw, PicoClaw usw.) sind leistungsstark, laufen aber oft mit ubermassigen Berechtigungen — uneingeschrankter Shell-Zugang, voller Festplattenzugriff und offene Netzwerkverbindungen. SafeClaw zeigt, dass ein Entwicklungsassistent **nutzlich sein kann, ohne gefahrlich zu sein**, indem Least-Privilege-Sicherheit auf jeder Ebene durchgesetzt wird.

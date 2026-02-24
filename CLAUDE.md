@@ -97,23 +97,27 @@ safeclaw/
 
 ### Phase 1: Core CLI + Plugins (MVP)
 - [x] Project structure + pyproject.toml
-- [ ] policy.py — load and validate policy.yaml with Pydantic
-- [ ] redaction.py — regex-based secret stripping
-- [ ] audit.py — append-only JSONL audit log
-- [ ] runner.py — plugin executor with policy checks + path enforcement
-- [ ] cli.py — Typer commands: `todo`, `summarize`, `secrets`, `deps`, `stats`
-- [ ] Plugins: todo_scan, log_summarize, secrets_scan, deps_audit, repo_stats
-- [ ] Tests for all core modules
-- [ ] GitHub Actions CI (pytest + ruff)
-- [ ] README.md (English) + README.de.md (German)
-- [ ] SECURITY.md with threat model
-- [ ] Example sample-repo for demos
+- [x] policy.py — load and validate policy.yaml with Pydantic
+- [x] redaction.py — regex-based secret stripping
+- [x] audit.py — append-only JSONL audit log
+- [x] runner.py — plugin executor with policy checks + path enforcement
+- [x] cli.py — Typer commands: `todo`, `summarize`, `secrets`, `deps`, `stats`
+- [x] Plugins: todo_scan, log_summarize, secrets_scan, deps_audit, repo_stats
+- [x] Tests for all core modules
+- [x] GitHub Actions CI (pytest + ruff)
+- [x] README.md (English) + README.de.md (German)
+- [x] SECURITY.md with threat model
+- [x] Example sample-repo for demos
 
 ### Phase 2: LLM Planner + Web Dashboard
-- [ ] planner.py — sends task to LLM, receives JSON plan, validates against policy
-- [ ] Support OpenAI, Anthropic, and local Ollama endpoints
-- [ ] dashboard.py — FastAPI localhost UI showing recent runs, policy status, audit log
-- [ ] `safeclaw plan "migrate this project to FastAPI"` CLI command
+- [x] planner.py — sends task to LLM, receives JSON plan, validates against policy
+- [x] Support OpenAI, Anthropic, and local Ollama endpoints
+- [x] dashboard.py — FastAPI localhost UI showing recent runs, policy status, audit log
+- [x] `safeclaw plan "task description"` CLI command
+- [x] `safeclaw dashboard` CLI command
+- [x] Dashboard bearer token auth + localhost binding
+- [x] Planner + dashboard tests
+- [x] docs/planner-guide.md
 
 ### Phase 3: Docker Sandboxing
 - [ ] Dockerfile — run SafeClaw inside container

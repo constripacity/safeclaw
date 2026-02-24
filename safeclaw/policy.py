@@ -16,6 +16,26 @@ class Limits(BaseModel):
     timeout_seconds: int = 30
 
 
+class PlannerConfig(BaseModel):
+    """Configuration for the LLM planner (Phase 2)."""
+
+    enabled: bool = False
+    backend: str = "ollama"
+    model: str = "qwen2.5-coder:14b"
+    base_url: str = "http://localhost:11434"
+    api_key_env: str = ""
+    max_steps: int = 5
+    require_confirmation: bool = True
+
+
+class DashboardConfig(BaseModel):
+    """Configuration for the localhost web dashboard (Phase 2)."""
+
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8321
+
+
 class Policy(BaseModel):
     """Security policy governing SafeClaw behaviour.
 
@@ -29,6 +49,8 @@ class Policy(BaseModel):
     allow_shell: bool = False
     allowed_plugins: list[str] = []
     limits: Limits = Limits()
+    planner: PlannerConfig = PlannerConfig()
+    dashboard: DashboardConfig = DashboardConfig()
 
     @field_validator("allowed_plugins", mode="before")
     @classmethod

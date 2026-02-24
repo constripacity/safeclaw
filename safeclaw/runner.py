@@ -131,3 +131,24 @@ def run_plugin(policy: Policy, plugin_name: str, target_path: Path | str) -> Run
             ),
         )
         return RunResult(ok=False, message=msg)
+
+
+def run_plan(policy: Policy, plan: object) -> list[RunResult]:
+    """Execute all validated steps in an execution plan.
+
+    Stops on the first failure (fail-fast).
+
+    Args:
+        policy: The active security policy.
+        plan: A validated ExecutionPlan (from planner module).
+
+    Returns:
+        List of RunResult for each executed step.
+    """
+    results: list[RunResult] = []
+    for step in plan.steps:  # type: ignore[attr-defined]
+        result = run_plugin(policy, step.plugin, step.target)
+        results.append(result)
+        if not result.ok:
+            break
+    return results

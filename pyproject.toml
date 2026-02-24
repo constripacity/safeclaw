@@ -1,6 +1,6 @@
 [project]
 name = "safeclaw"
-version = "0.1.0"
+version = "0.2.0"
 description = "A sandboxed, policy-driven local dev assistant with least-privilege security, audit logging, and plugin architecture."
 readme = "README.md"
 license = "MIT"
