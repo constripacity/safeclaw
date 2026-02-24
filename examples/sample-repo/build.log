@@ -1,0 +1,14 @@
+2026-02-24 08:00:01 [INFO] Starting build...
+2026-02-24 08:00:02 [INFO] Compiling module: auth
+2026-02-24 08:00:03 [ERROR] Failed to import module 'database': ModuleNotFoundError
+2026-02-24 08:00:03 [INFO] Compiling module: api
+2026-02-24 08:00:04 [WARNING] Deprecated function call in api/routes.py:42
+2026-02-24 08:00:05 [ERROR] TypeError: expected str, got NoneType at line 87
+2026-02-24 08:00:05 [INFO] Running test suite...
+2026-02-24 08:00:10 [ERROR] Test test_auth_flow FAILED: AssertionError
+2026-02-24 08:00:10 [ERROR] Traceback (most recent call last):
+2026-02-24 08:00:10 [ERROR]   File "tests/test_auth.py", line 23, in test_auth_flow
+2026-02-24 08:00:10 [ERROR]     assert response.status_code == 200
+2026-02-24 08:00:10 [ERROR] AssertionError: 401 != 200
+2026-02-24 08:00:11 [INFO] Tests: 42 passed, 1 failed, 0 skipped
+2026-02-24 08:00:12 [ERROR] Build failed with 1 test failure.

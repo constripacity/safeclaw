@@ -1,0 +1,40 @@
+# SafeClaw Policy Configuration
+# All permissions are DENIED by default. Only explicitly allowed actions are permitted.
+
+project_root: "."
+sandbox_subdir: "AI_SANDBOX"
+
+# Core permissions (all false by default)
+allow_network: false
+allow_shell: false
+
+# Only these plugins can run
+allowed_plugins:
+  - todo_scan
+  - log_summarize
+  - secrets_scan
+  - deps_audit
+  - repo_stats
+
+# Resource limits
+limits:
+  max_file_mb: 5        # Skip files larger than this
+  max_files: 2000       # Max files to process per scan
+  timeout_seconds: 30   # Kill plugin after this
+
+# LLM Planner (Phase 2 — disabled by default)
+# planner:
+#   enabled: false
+#   backend: "ollama"          # openai | anthropic | ollama
+#   model: "qwen2.5-coder:14b"
+#   base_url: "http://localhost:11434"
+#   max_steps: 5
+#   require_confirmation: true
+
+# Docker Sandbox (Phase 3 — disabled by default)
+# sandbox:
+#   enabled: false
+#   docker_image: "safeclaw:latest"
+#   memory_mb: 256
+#   cpu_cores: 1
+#   network: false
