@@ -175,8 +175,17 @@ class TestPlannerPolicyChecks:
         with pytest.raises(PlanNetworkError):
             planner.plan("do something")
 
-    def test_local_ollama_allowed_without_network(self, tmp_path: Path) -> None:
+    def test_local_ollama_allowed_without_network(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Ollama on localhost should work even when allow_network is False."""
+        from safeclaw.planner import _OllamaBackend
+
+        def mock_call(self, policy, system, user_msg):  # noqa: ARG001
+            raise PlanConnectionError("mocked: Ollama not reachable")
+
+        monkeypatch.setattr(_OllamaBackend, "call", mock_call)
+
         pol = Policy(
             project_root=str(tmp_path),
             allow_network=False,
@@ -188,7 +197,7 @@ class TestPlannerPolicyChecks:
         )
         planner = Planner(pol)
         # Should not raise PlanNetworkError — it will fail with connection
-        # error since Ollama isn't running, but that's the expected path.
+        # error from the mocked backend, proving the policy check passed.
         with pytest.raises(PlanConnectionError):
             planner.plan("do something")
 
