@@ -30,34 +30,24 @@ def _count_refs(git_dir: Path) -> dict[str, int]:
     tags_dir = git_dir / "refs" / "tags"
 
     if heads_dir.is_dir():
-        counts["branches"] = sum(
-            1 for p in heads_dir.rglob("*") if p.is_file()
-        )
+        counts["branches"] = sum(1 for p in heads_dir.rglob("*") if p.is_file())
     if tags_dir.is_dir():
-        counts["tags"] = sum(
-            1 for p in tags_dir.rglob("*") if p.is_file()
-        )
+        counts["tags"] = sum(1 for p in tags_dir.rglob("*") if p.is_file())
 
     return counts
 
 
-def _parse_reflog(
-    git_dir: Path, max_entries: int = 200
-) -> list[dict[str, str]]:
+def _parse_reflog(git_dir: Path, max_entries: int = 200) -> list[dict[str, str]]:
     """Parse .git/logs/HEAD for recent commit activity."""
     reflog = git_dir / "logs" / "HEAD"
     if not reflog.is_file():
         return []
 
     entries: list[dict[str, str]] = []
-    pattern = re.compile(
-        r"^[0-9a-f]+ [0-9a-f]+ (.+?) <(.+?)> (\d+) [+\-]\d{4}\t(.*)$"
-    )
+    pattern = re.compile(r"^[0-9a-f]+ [0-9a-f]+ (.+?) <(.+?)> (\d+) [+\-]\d{4}\t(.*)$")
 
     try:
-        lines = reflog.read_text(
-            encoding="utf-8", errors="replace"
-        ).splitlines()
+        lines = reflog.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return []
 
@@ -112,9 +102,7 @@ def run(policy: Policy, target: Path) -> tuple[str, list[str]]:
         touched.append(str(git_dir / "logs" / "HEAD"))
         parts.append(f"Reflog entries: {len(entries)}")
 
-        commit_entries = [
-            e for e in entries if e["action"].startswith("commit")
-        ]
+        commit_entries = [e for e in entries if e["action"].startswith("commit")]
         author_counts: Counter[str] = Counter()
         for e in commit_entries:
             author_counts[e["author"]] += 1

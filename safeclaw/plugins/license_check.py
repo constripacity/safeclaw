@@ -117,9 +117,7 @@ def run(policy: Policy, target: Path) -> tuple[str, list[str]]:
         if pyproject.is_file():
             touched.append(str(pyproject))
             try:
-                content = pyproject.read_text(
-                    encoding="utf-8", errors="replace"
-                )
+                content = pyproject.read_text(encoding="utf-8", errors="replace")
                 match = re.search(r'license\s*=\s*"([^"]+)"', content)
                 if match:
                     return (

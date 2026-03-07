@@ -16,12 +16,8 @@ def _count_nesting(node: ast.AST, current: int = 0) -> int:
     """Count the maximum nesting depth of control flow statements."""
     max_depth = current
     for child in ast.iter_child_nodes(node):
-        if isinstance(
-            child, (ast.If, ast.For, ast.While, ast.With, ast.Try)
-        ):
-            max_depth = max(
-                max_depth, _count_nesting(child, current + 1)
-            )
+        if isinstance(child, (ast.If, ast.For, ast.While, ast.With, ast.Try)):
+            max_depth = max(max_depth, _count_nesting(child, current + 1))
         else:
             max_depth = max(max_depth, _count_nesting(child, current))
     return max_depth
@@ -38,9 +34,7 @@ def _analyze_file(fpath: Path) -> list[str]:
     findings: list[str] = []
 
     for node in ast.walk(tree):
-        if not isinstance(
-            node, (ast.FunctionDef, ast.AsyncFunctionDef)
-        ):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
 
         name = node.name
@@ -48,17 +42,11 @@ def _analyze_file(fpath: Path) -> list[str]:
 
         # Line count
         end_lineno = getattr(node, "end_lineno", None)
-        func_lines = (
-            (end_lineno - lineno + 1) if end_lineno is not None else 0
-        )
+        func_lines = (end_lineno - lineno + 1) if end_lineno is not None else 0
 
         # Parameter count
         args = node.args
-        param_count = (
-            len(args.args)
-            + len(args.posonlyargs)
-            + len(args.kwonlyargs)
-        )
+        param_count = len(args.args) + len(args.posonlyargs) + len(args.kwonlyargs)
         if args.vararg:
             param_count += 1
         if args.kwarg:
@@ -77,9 +65,7 @@ def _analyze_file(fpath: Path) -> list[str]:
             issues.append(f"nesting {nesting} (>{_MAX_NESTING})")
 
         if issues:
-            findings.append(
-                f"  L{lineno} {name}(): {', '.join(issues)}"
-            )
+            findings.append(f"  L{lineno} {name}(): {', '.join(issues)}")
 
     return findings
 
@@ -121,11 +107,7 @@ def run(policy: Policy, target: Path) -> tuple[str, list[str]]:
         touched.append(str(fpath))
         file_findings = _analyze_file(fpath)
         if file_findings:
-            rel = (
-                fpath.relative_to(target)
-                if target.is_dir()
-                else fpath.name
-            )
+            rel = fpath.relative_to(target) if target.is_dir() else fpath.name
             all_findings.append(f"  {rel}:")
             all_findings.extend(f"    {f}" for f in file_findings)
 
