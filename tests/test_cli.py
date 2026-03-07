@@ -296,3 +296,19 @@ class TestCliPlanExecution:
             )
         assert result.exit_code == 1
         assert "parse" in result.output.lower() or "Failed" in result.output
+
+
+class TestCliBanner:
+    def test_no_args_shows_banner(self) -> None:
+        """Running safeclaw with no args shows the welcome banner."""
+        result = runner.invoke(app, [])
+        assert result.exit_code == 0
+        assert "safeclaw" in result.output.lower()
+
+    def test_version_flag(self) -> None:
+        """--version prints version and exits."""
+        from safeclaw import __version__
+
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert __version__ in result.output

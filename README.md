@@ -6,52 +6,91 @@
 
 A **sandboxed, policy-driven local dev assistant** that scans your codebase for TODOs, secrets, dependency issues, and more — without ever running arbitrary shell commands or accessing the network.
 
-## Quick Start
+## Getting Started
+
+### 1. Install
 
 ```bash
-# Install
 pip install -e ".[dev]"
+```
 
-# Scan for TODO/FIXME/HACK markers
-safeclaw todo ./my-project/
+### 2. Navigate to your project
 
-# Check for hardcoded secrets
-safeclaw secrets ./my-project/
+```bash
+cd /path/to/your/project
+```
 
-# Summarise a build log
-safeclaw summarize ./build.log
+### 3. Run SafeClaw
 
-# Audit dependencies
-safeclaw deps ./my-project/
+```bash
+safeclaw
+```
 
-# Repository statistics
-safeclaw stats ./my-project/
+This displays the SafeClaw welcome screen with all available commands.
 
-# View audit log
-safeclaw audit
+### 4. Scan your code
 
-# Show current policy
+```bash
+safeclaw todo .           # Find TODO/FIXME/HACK markers
+safeclaw secrets .        # Check for hardcoded secrets and API keys
+safeclaw deps .           # Audit your declared dependencies
+safeclaw stats .          # Get repository statistics
+safeclaw summarize build.log  # Summarise a build log
+```
+
+Each scan produces a bordered output panel and is automatically logged to the audit trail.
+
+### 5. Review the audit log
+
+```bash
+safeclaw audit            # View recent entries
+safeclaw audit -n 50      # View last 50 entries
+```
+
+### 6. Check your security policy
+
+```bash
 safeclaw policy
+```
 
-# Export audit log to JSON, CSV, or HTML
-safeclaw export --format json --count 20
-safeclaw export report.html --format html
+All permissions are denied by default. SafeClaw only does what `policy.yaml` explicitly allows.
 
-# Watch a directory and auto-run plugins on changes
-safeclaw watch ./my-project/ --plugins todo_scan,secrets_scan
+## Quick Reference
 
-# Install pre-commit hook to block secrets in commits
-safeclaw init
+```bash
+# Core scans
+safeclaw todo ./my-project/        # TODO/FIXME/HACK markers
+safeclaw secrets ./my-project/     # Hardcoded secrets
+safeclaw summarize ./build.log     # Log file errors
+safeclaw deps ./my-project/        # Dependency issues
+safeclaw stats ./my-project/       # Repository statistics
+
+# Audit & policy
+safeclaw audit                     # View audit log
+safeclaw policy                    # Show current policy
+safeclaw export --format html      # Export audit log
+
+# Git integration
+safeclaw init                      # Install pre-commit hook
+safeclaw deinit                    # Remove pre-commit hook
+
+# File watcher
+safeclaw watch ./my-project/       # Auto-run on file changes
+
+# LLM planner (requires Ollama)
+safeclaw plan "scan for security issues"
+
+# Web dashboard
+safeclaw dashboard                 # Start localhost dashboard
 
 # Multi-project management
 safeclaw projects add myapp ./path/to/myapp
 safeclaw projects scan-all
 
-# AI-powered fix suggestions (requires Ollama)
-safeclaw fix todo ./my-project/
+# AI fix suggestions (requires Ollama)
 safeclaw fix all ./my-project/
 
-# MCP server for Claude Code integration
+# MCP server for Claude Code
 safeclaw mcp --list-tools
 
 # Interactive terminal UI

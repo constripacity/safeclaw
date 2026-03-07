@@ -10,14 +10,15 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from safeclaw import __version__
 from safeclaw.audit import read_audit
 from safeclaw.policy import load_policy
 from safeclaw.runner import run_plan, run_plugin
 
 app = typer.Typer(
     name="safeclaw",
-    help="SafeClaw — A sandboxed, policy-driven local dev assistant.",
-    no_args_is_help=True,
+    help="SafeClaw -- A sandboxed, policy-driven local dev assistant.",
+    invoke_without_command=True,
 )
 console = Console()
 
@@ -28,15 +29,72 @@ PolicyOption = Annotated[
     typer.Option("--policy", "-p", help="Path to policy.yaml"),
 ]
 
+_BANNER = r"""[bold cyan]
+  ____         __      ____  _
+ / ___|  __ _ / _| ___|  _ \| | __ ___      __
+ \___ \ / _` | |_ / _ \ |   | |/ _` \ \ /\ / /
+  ___) | (_| |  _|  __/ |_  | | (_| |\ V  V /
+ |____/ \__,_|_|  \___|____/|_|\__,_| \_/\_/
+[/bold cyan]"""
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        console.print(f"SafeClaw v{__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            "-V",
+            help="Show version and exit.",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = False,
+) -> None:
+    """SafeClaw -- A sandboxed, policy-driven local dev assistant."""
+    if ctx.invoked_subcommand is not None:
+        return
+    console.print(_BANNER)
+    console.print(
+        f"  [dim]v{__version__}[/dim]  [bold]Sandboxed, policy-driven local dev assistant[/bold]\n"
+    )
+    console.print("  [cyan]Usage:[/cyan]  safeclaw [COMMAND] [OPTIONS]\n")
+    console.print("  [yellow]Core Scans[/yellow]")
+    console.print("    todo        Scan for TODO/FIXME/HACK markers")
+    console.print("    secrets     Scan for hardcoded secrets")
+    console.print("    deps        Audit declared dependencies")
+    console.print("    stats       Repository statistics")
+    console.print("    summarize   Summarise a log file\n")
+    console.print("  [yellow]Tools[/yellow]")
+    console.print("    audit       View the audit log")
+    console.print("    policy      Display current policy")
+    console.print("    export      Export audit log (CSV/JSON/HTML)")
+    console.print("    plan        LLM-powered execution plans")
+    console.print("    watch       Auto-run plugins on file changes")
+    console.print("    dashboard   Start the web dashboard\n")
+    console.print(
+        "  Run [bold]safeclaw --help[/bold] for all commands"
+        " or [bold]safeclaw COMMAND --help[/bold] for details.\n"
+    )
+
 
 def _run_and_display(policy_path: Path, plugin: str, target: Path) -> None:
     """Load policy, run a plugin, and display the result."""
     policy = load_policy(policy_path)
     result = run_plugin(policy, plugin, target)
     if result.ok:
-        console.print(Panel(result.message, title=f"[green]{plugin}[/green]", border_style="green"))
+        title = f"[green]OK[/green] [bold]{plugin}[/bold]"
+        console.print(Panel(result.message, title=title, border_style="green"))
     else:
-        console.print(Panel(result.message, title=f"[red]{plugin}[/red]", border_style="red"))
+        title = f"[red]FAIL[/red] [bold]{plugin}[/bold]"
+        console.print(Panel(result.message, title=title, border_style="red"))
         raise typer.Exit(code=1)
 
 
@@ -248,7 +306,11 @@ def plan_cmd(
 
     try:
         planner = Planner(pol)
-        exec_plan = planner.plan(task)
+        with console.status(
+            "[bold cyan]Generating plan...[/bold cyan]",
+            spinner="dots",
+        ):
+            exec_plan = planner.plan(task)
     except PlannerDisabledError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -622,12 +684,15 @@ def _fix_with_plugin(policy_path: Path, plugin: str, target: Path, fix_method: s
         raise typer.Exit(code=1)
 
     console.print(Panel(result.message, title=f"[green]{plugin}[/green]", border_style="green"))
-    console.print("\n[bold]Analyzing with AI...[/bold]\n")
 
     try:
         fixer = SmartFixer(pol)
         method = getattr(fixer, fix_method)
-        suggestions = method(result.message)
+        with console.status(
+            "[bold cyan]Analyzing with AI...[/bold cyan]",
+            spinner="dots",
+        ):
+            suggestions = method(result.message)
     except FixerDisabledError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -701,13 +766,16 @@ def fix_all(
             border_style="green",
         )
     )
-    console.print("\n[bold]Analyzing with AI...[/bold]\n")
-
     try:
         fixer = SmartFixer(pol)
-        suggestions = fixer.analyze_findings(
-            all_output, context="Combined results from multiple SafeClaw security scans."
-        )
+        with console.status(
+            "[bold cyan]Analyzing with AI...[/bold cyan]",
+            spinner="dots",
+        ):
+            suggestions = fixer.analyze_findings(
+                all_output,
+                context="Combined results from multiple SafeClaw security scans.",
+            )
     except FixerDisabledError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
