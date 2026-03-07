@@ -61,10 +61,19 @@ def read_audit(project_root: Path | str, last_n: int = 20) -> list[dict]:
     Returns:
         A list of dicts, newest first.
     """
+    if last_n <= 0:
+        return []
+
     audit_path = Path(project_root).resolve() / AUDIT_DIR / AUDIT_FILE
     if not audit_path.exists():
         return []
 
     lines = audit_path.read_text(encoding="utf-8").strip().splitlines()
-    entries = [json.loads(line) for line in lines if line.strip()]
+    entries: list[dict] = []
+    for line in lines:
+        if line.strip():
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue  # skip corrupted lines
     return list(reversed(entries[-last_n:]))

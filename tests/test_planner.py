@@ -312,3 +312,208 @@ class TestUnknownBackend:
         )
         with pytest.raises(PlannerError, match="Unknown planner backend"):
             get_backend(pol)
+
+
+# ---------------------------------------------------------------------------
+# _get_api_key
+# ---------------------------------------------------------------------------
+
+
+class TestGetApiKey:
+    def test_returns_empty_when_no_env_var(self, tmp_path: Path) -> None:
+        from safeclaw.planner import _get_api_key
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            planner=PlannerConfig(enabled=True, api_key_env=""),
+        )
+        assert _get_api_key(pol) == ""
+
+    def test_reads_from_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from safeclaw.planner import _get_api_key
+
+        monkeypatch.setenv("TEST_API_KEY", "my-secret-key")
+        pol = Policy(
+            project_root=str(tmp_path),
+            planner=PlannerConfig(enabled=True, api_key_env="TEST_API_KEY"),
+        )
+        assert _get_api_key(pol) == "my-secret-key"
+
+    def test_returns_empty_when_env_var_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from safeclaw.planner import _get_api_key
+
+        monkeypatch.delenv("NONEXISTENT_KEY", raising=False)
+        pol = Policy(
+            project_root=str(tmp_path),
+            planner=PlannerConfig(enabled=True, api_key_env="NONEXISTENT_KEY"),
+        )
+        assert _get_api_key(pol) == ""
+
+
+# ---------------------------------------------------------------------------
+# Backend call() methods with mocked httpx
+# ---------------------------------------------------------------------------
+
+
+class TestOllamaBackendCall:
+    def test_successful_call(self, planner_policy: Policy, monkeypatch: pytest.MonkeyPatch) -> None:
+        from safeclaw.planner import _OllamaBackend
+
+        class FakeResponse:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> dict:
+                return {"message": {"content": '{"steps": []}'}}
+
+        import httpx
+
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: FakeResponse())
+
+        backend = _OllamaBackend()
+        result = backend.call(planner_policy, "system msg", "user msg")
+        assert result == '{"steps": []}'
+
+    def test_connect_error(self, planner_policy: Policy, monkeypatch: pytest.MonkeyPatch) -> None:
+        import httpx
+
+        from safeclaw.planner import _OllamaBackend
+
+        def raise_connect(*a, **kw):
+            raise httpx.ConnectError("connection refused")
+
+        monkeypatch.setattr(httpx, "post", raise_connect)
+
+        backend = _OllamaBackend()
+        with pytest.raises(PlanConnectionError, match="Cannot reach Ollama"):
+            backend.call(planner_policy, "sys", "user")
+
+
+class TestOpenAIBackendCall:
+    def test_missing_api_key_raises(self, tmp_path: Path) -> None:
+        from safeclaw.planner import _OpenAIBackend
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            planner=PlannerConfig(enabled=True, backend="openai", api_key_env=""),
+        )
+        backend = _OpenAIBackend()
+        with pytest.raises(PlanConnectionError, match="No API key"):
+            backend.call(pol, "sys", "user")
+
+    def test_successful_call(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from safeclaw.planner import _OpenAIBackend
+
+        monkeypatch.setenv("TEST_OPENAI_KEY", "sk-test")
+
+        class FakeResponse:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> dict:
+                return {"choices": [{"message": {"content": '{"steps": []}'}}]}
+
+        import httpx
+
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: FakeResponse())
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            allow_network=True,
+            planner=PlannerConfig(enabled=True, backend="openai", api_key_env="TEST_OPENAI_KEY"),
+        )
+        backend = _OpenAIBackend()
+        result = backend.call(pol, "sys", "user")
+        assert result == '{"steps": []}'
+
+    def test_connect_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from safeclaw.planner import _OpenAIBackend
+
+        monkeypatch.setenv("TEST_OPENAI_KEY", "sk-test")
+
+        import httpx
+
+        def raise_connect(*a, **kw):
+            raise httpx.ConnectError("connection refused")
+
+        monkeypatch.setattr(httpx, "post", raise_connect)
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            allow_network=True,
+            planner=PlannerConfig(enabled=True, backend="openai", api_key_env="TEST_OPENAI_KEY"),
+        )
+        backend = _OpenAIBackend()
+        with pytest.raises(PlanConnectionError, match="Cannot reach OpenAI"):
+            backend.call(pol, "sys", "user")
+
+
+class TestAnthropicBackendCall:
+    def test_missing_api_key_raises(self, tmp_path: Path) -> None:
+        from safeclaw.planner import _AnthropicBackend
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            planner=PlannerConfig(enabled=True, backend="anthropic", api_key_env=""),
+        )
+        backend = _AnthropicBackend()
+        with pytest.raises(PlanConnectionError, match="No API key"):
+            backend.call(pol, "sys", "user")
+
+    def test_successful_call(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from safeclaw.planner import _AnthropicBackend
+
+        monkeypatch.setenv("TEST_ANTHROPIC_KEY", "sk-ant-test")
+
+        class FakeResponse:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> dict:
+                return {"content": [{"text": '{"steps": []}'}]}
+
+        import httpx
+
+        monkeypatch.setattr(httpx, "post", lambda *a, **kw: FakeResponse())
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            allow_network=True,
+            planner=PlannerConfig(
+                enabled=True, backend="anthropic", api_key_env="TEST_ANTHROPIC_KEY"
+            ),
+        )
+        backend = _AnthropicBackend()
+        result = backend.call(pol, "sys", "user")
+        assert result == '{"steps": []}'
+
+    def test_connect_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from safeclaw.planner import _AnthropicBackend
+
+        monkeypatch.setenv("TEST_ANTHROPIC_KEY", "sk-ant-test")
+
+        import httpx
+
+        def raise_connect(*a, **kw):
+            raise httpx.ConnectError("connection refused")
+
+        monkeypatch.setattr(httpx, "post", raise_connect)
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            allow_network=True,
+            planner=PlannerConfig(
+                enabled=True, backend="anthropic", api_key_env="TEST_ANTHROPIC_KEY"
+            ),
+        )
+        backend = _AnthropicBackend()
+        with pytest.raises(PlanConnectionError, match="Cannot reach Anthropic"):
+            backend.call(pol, "sys", "user")

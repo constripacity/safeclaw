@@ -39,3 +39,18 @@ htmlcov/
 
 # Build prompts (not shipped)
 prompts/
+
+# Local UI (not for GitHub)
+safeclaw/tui.py
+safeclaw/templates/
+safeclaw/static/
+
+# Local Phase 4 (not for GitHub)
+safeclaw/projects.py
+safeclaw/watcher.py
+safeclaw/fixer.py
+safeclaw/mcp_server.py
+tests/test_projects.py
+tests/test_watcher.py
+tests/test_fixer.py
+tests/test_mcp_server.py

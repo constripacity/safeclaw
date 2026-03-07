@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import secrets
+import time
 from pathlib import Path
 from typing import Any
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from safeclaw.audit import AuditEvent, read_audit, write_audit
 from safeclaw.policy import Policy
-from safeclaw.runner import get_registry, run_plugin
+from safeclaw.runner import get_registry, run_plan, run_plugin
 
 # ---------------------------------------------------------------------------
 # Token management
@@ -111,21 +112,27 @@ class PlanRequest(BaseModel):
     task: str
 
 
-def create_app(policy: Policy) -> FastAPI:
+def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
     """Create and return the FastAPI dashboard application."""
     app = FastAPI(title="SafeClaw Dashboard", docs_url=None, redoc_url=None)
     token = get_or_create_token(policy.root_path())
+    _golden_mode = golden
 
     # --- Auth dependency ---
     def require_auth(request: Request) -> None:
+        # Accept token via Authorization header OR ?token= query param (for browser access)
         auth = request.headers.get("Authorization", "")
-        if auth != f"Bearer {token}":
-            raise HTTPException(status_code=401, detail="Invalid or missing token")
+        query_token = request.query_params.get("token", "")
+        if auth == f"Bearer {token}" or query_token == token:
+            return
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
 
     # --- Routes ---
 
-    @app.get("/", response_class=HTMLResponse)
-    def home(request: Request, _auth: None = Depends(require_auth)) -> str:
+    @app.get("/", response_class=HTMLResponse, response_model=None)
+    def home(request: Request, _auth: None = Depends(require_auth)):
+        if _golden_mode:
+            return RedirectResponse(url="/golden", status_code=302)
         write_audit(
             policy.root_path(),
             AuditEvent(action="dashboard", status="ok", detail="GET /"),
@@ -271,5 +278,145 @@ def create_app(policy: Policy) -> FastAPI:
             }
         except PlannerError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # ------------------------------------------------------------------
+    # JSON API endpoints (for Golden dashboard)
+    # ------------------------------------------------------------------
+
+    @app.get("/api/status")
+    def api_status(request: Request, _auth: None = Depends(require_auth)) -> dict[str, Any]:
+        entries = read_audit(policy.root_path(), last_n=1000)
+        total = len(entries)
+        denied = sum(1 for e in entries if e.get("status") == "denied")
+        last_entry = entries[0] if entries else None
+        return {
+            "project_root": str(policy.root_path()),
+            "plugins_active": len(policy.allowed_plugins),
+            "plugins_total": len(get_registry()),
+            "network": policy.allow_network,
+            "shell": policy.allow_shell,
+            "planner_enabled": policy.planner.enabled,
+            "dashboard_enabled": policy.dashboard.enabled,
+            "total_scans": total,
+            "denied_count": denied,
+            "last_entry": last_entry,
+            "uptime": time.monotonic(),
+        }
+
+    @app.get("/api/audit")
+    def api_audit(
+        request: Request,
+        page: int = 1,
+        limit: int = 20,
+        status: str = "all",
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        all_entries = read_audit(policy.root_path(), last_n=1000)
+        if status != "all":
+            all_entries = [e for e in all_entries if e.get("status") == status]
+        total = len(all_entries)
+        start = (page - 1) * limit
+        page_entries = all_entries[start : start + limit]
+        return {
+            "entries": page_entries,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": (total + limit - 1) // limit if limit else 1,
+        }
+
+    @app.get("/api/plugins")
+    def api_plugins(request: Request, _auth: None = Depends(require_auth)) -> list[dict[str, Any]]:
+        registry = get_registry()
+        result = []
+        for name in sorted(registry):
+            doc = (registry[name].__doc__ or "").split("\n")[0]
+            result.append(
+                {
+                    "name": name,
+                    "allowed": name in policy.allowed_plugins,
+                    "description": doc,
+                }
+            )
+        return result
+
+    @app.get("/api/policy")
+    def api_policy(request: Request, _auth: None = Depends(require_auth)) -> dict[str, Any]:
+        return policy.model_dump()
+
+    @app.post("/api/scan")
+    def api_scan(
+        body: RunRequest,
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        if body.plugin not in policy.allowed_plugins:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Plugin '{body.plugin}' is not allowed by policy",
+            )
+        result = run_plugin(policy, body.plugin, body.target)
+        return {"ok": result.ok, "message": result.message, "touched_files": result.touched_files}
+
+    @app.post("/api/plan")
+    def api_plan(
+        body: PlanRequest,
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        from safeclaw.planner import Planner, PlannerError, validate_plan
+
+        try:
+            planner = Planner(policy)
+            plan = planner.plan(body.task)
+            result = validate_plan(plan, policy)
+            return {
+                "steps": [s.model_dump() for s in plan.steps],
+                "validated": result.validated,
+                "rejected_steps": result.rejected_steps,
+            }
+        except PlannerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/plan/execute")
+    def api_plan_execute(
+        body: PlanRequest,
+        request: Request,
+        _auth: None = Depends(require_auth),
+    ) -> dict[str, Any]:
+        from safeclaw.planner import Planner, PlannerError, validate_plan
+
+        try:
+            planner = Planner(policy)
+            plan = planner.plan(body.task)
+            result = validate_plan(plan, policy)
+            if not result.validated:
+                return {
+                    "executed": False,
+                    "reason": "Plan validation failed",
+                    "rejected_steps": result.rejected_steps,
+                    "results": [],
+                }
+            results = run_plan(policy, plan)
+            return {
+                "executed": True,
+                "results": [
+                    {"plugin": s.plugin, "ok": r.ok, "message": r.message}
+                    for s, r in zip(plan.steps, results, strict=False)
+                ],
+            }
+        except PlannerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # ------------------------------------------------------------------
+    # Golden dashboard route
+    # ------------------------------------------------------------------
+
+    @app.get("/golden", response_class=HTMLResponse)
+    def golden_page(request: Request, _auth: None = Depends(require_auth)) -> str:
+        template_path = Path(__file__).parent / "templates" / "golden.html"
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="Golden dashboard template not found")
+        return template_path.read_text(encoding="utf-8")
 
     return app

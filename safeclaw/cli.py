@@ -157,6 +157,71 @@ def show_policy(
     console.print(table)
 
 
+@app.command(name="init")
+def init_cmd(
+    force: Annotated[bool, typer.Option("--force", help="Replace existing SafeClaw hook")] = False,
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Install the SafeClaw pre-commit hook into this git repository."""
+    from safeclaw.hooks import install_hook
+
+    pol = load_policy(policy)
+
+    try:
+        hook_path = install_hook(pol.root_path(), force=force)
+    except (FileNotFoundError, RuntimeError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[green]SafeClaw pre-commit hook installed at {hook_path}[/green]")
+
+
+@app.command(name="deinit")
+def deinit_cmd(
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Remove the SafeClaw pre-commit hook from this git repository."""
+    from safeclaw.hooks import uninstall_hook
+
+    pol = load_policy(policy)
+    removed = uninstall_hook(pol.root_path())
+
+    if removed:
+        console.print("[green]SafeClaw pre-commit hook removed.[/green]")
+    else:
+        console.print("[yellow]No SafeClaw hook found to remove.[/yellow]")
+
+
+@app.command(name="export")
+def export_cmd(
+    path: Annotated[
+        Path | None,
+        typer.Argument(help="Output file path (omit for stdout)"),
+    ] = None,
+    fmt: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Export format: csv, json, or html"),
+    ] = "json",
+    count: Annotated[int, typer.Option("--count", "-n", help="Number of entries")] = 50,
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Export audit log to CSV, JSON, or HTML."""
+    from safeclaw.export import export_audit
+
+    pol = load_policy(policy)
+
+    try:
+        result = export_audit(pol, fmt=fmt, count=count, output_path=path)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if path is None:
+        console.print(result)
+    else:
+        console.print(f"[green]Exported {count} entries to {path}[/green]")
+
+
 # ---------------------------------------------------------------------------
 # Phase 2 commands
 # ---------------------------------------------------------------------------
@@ -262,10 +327,57 @@ def plan_cmd(
     console.print(f"\n{ok_count}/{len(results)} step(s) completed successfully.")
 
 
+@app.command(name="watch")
+def watch_cmd(
+    path: Annotated[Path, typer.Argument(help="Directory to watch")] = Path("."),
+    plugins: Annotated[
+        str | None,
+        typer.Option("--plugins", help="Comma-separated plugin names (default: all allowed)"),
+    ] = None,
+    debounce: Annotated[
+        float, typer.Option("--debounce", help="Debounce interval in seconds")
+    ] = 2.0,
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Watch a directory and auto-run plugins on file changes."""
+    from safeclaw.watcher import watch
+
+    pol = load_policy(policy)
+    plugin_list = [p.strip() for p in plugins.split(",") if p.strip()] if plugins else None
+
+    try:
+        watch(
+            pol,
+            path,
+            plugins=plugin_list,
+            debounce_ms=int(debounce * 1000),
+            console=console,
+        )
+    except ImportError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt:
+        console.print("\n[dim]Watch stopped.[/dim]")
+
+
+@app.command(name="tui")
+def tui_cmd(
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Launch the interactive terminal UI."""
+    from safeclaw.tui import run_tui
+
+    run_tui(policy_path=policy)
+
+
 @app.command(name="dashboard")
 def dashboard_cmd(
     policy: PolicyOption = _DEFAULT_POLICY,
     port: Annotated[int, typer.Option("--port", help="Port to bind to")] = 0,
+    golden: Annotated[bool, typer.Option("--golden", help="Use the premium gold web UI")] = False,
 ) -> None:
     """Start the SafeClaw web dashboard (localhost only)."""
     from safeclaw.dashboard import create_app, get_or_create_token
@@ -283,10 +395,351 @@ def dashboard_cmd(
     host = pol.dashboard.host
     token = get_or_create_token(pol.root_path())
 
-    console.print("\n[bold]SafeClaw Dashboard[/bold]")
-    console.print(f"  URL:   http://{host}:{bind_port}")
+    ui_label = "Golden" if golden else "Standard"
+    url_path = "/golden" if golden else "/"
+    console.print(f"\n[bold]SafeClaw Dashboard[/bold] ({ui_label})")
+    console.print(f"  URL:   http://{host}:{bind_port}{url_path}")
     console.print(f"  Token: {token}\n")
 
     import uvicorn
 
-    uvicorn.run(create_app(pol), host=host, port=bind_port, log_level="warning")
+    uvicorn.run(create_app(pol, golden=golden), host=host, port=bind_port, log_level="warning")
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 commands — multi-project
+# ---------------------------------------------------------------------------
+
+projects_app = typer.Typer(help="Multi-project management commands.")
+app.add_typer(projects_app, name="projects")
+
+
+def _get_project_manager(policy_path: Path) -> tuple:
+    """Load policy, registry, and return (ProjectManager, policy)."""
+    from safeclaw.projects import ProjectManager, load_projects
+
+    pol = load_policy(policy_path)
+    registry = load_projects()
+    return ProjectManager(registry, pol), pol
+
+
+@projects_app.command(name="list")
+def projects_list(
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Show all registered projects."""
+    mgr, _ = _get_project_manager(policy)
+    projects = mgr.list_projects()
+
+    if not projects:
+        console.print("[dim]No projects registered. Use 'safeclaw projects add' to add one.[/dim]")
+        return
+
+    table = Table(title="Registered Projects")
+    table.add_column("Name", style="cyan")
+    table.add_column("Path")
+    table.add_column("Plugins", style="magenta")
+    table.add_column("Auto-Scan")
+    table.add_column("Last Scan", style="dim")
+
+    for proj in projects:
+        auto = "[green]yes[/green]" if proj.auto_scan else "[red]no[/red]"
+        last = mgr.get_last_scan_time(proj.name) or "never"
+        table.add_row(proj.name, str(proj.path), ", ".join(proj.plugins), auto, last)
+
+    console.print(table)
+
+
+@projects_app.command(name="add")
+def projects_add(
+    name: Annotated[str, typer.Argument(help="Unique project name")],
+    path: Annotated[Path, typer.Argument(help="Path to project directory")],
+    plugins: Annotated[
+        str | None,
+        typer.Option("--plugins", help="Comma-separated plugin names"),
+    ] = None,
+    no_auto: Annotated[bool, typer.Option("--no-auto", help="Disable auto-scan")] = False,
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Register a new project."""
+    from safeclaw.projects import save_projects
+
+    mgr, _ = _get_project_manager(policy)
+    plugin_list = [p.strip() for p in plugins.split(",") if p.strip()] if plugins else None
+
+    try:
+        config = mgr.add_project(name, path, plugins=plugin_list, auto_scan=not no_auto)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    save_projects(mgr.registry)
+    console.print(f"[green]Added project '{config.name}' at {config.path}[/green]")
+
+
+@projects_app.command(name="remove")
+def projects_remove(
+    name: Annotated[str, typer.Argument(help="Project name to remove")],
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Unregister a project."""
+    from safeclaw.projects import save_projects
+
+    mgr, _ = _get_project_manager(policy)
+    removed = mgr.remove_project(name)
+
+    if removed:
+        save_projects(mgr.registry)
+        console.print(f"[green]Removed project '{name}'.[/green]")
+    else:
+        console.print(f"[yellow]Project '{name}' not found.[/yellow]")
+
+
+@projects_app.command(name="scan")
+def projects_scan(
+    name: Annotated[str, typer.Argument(help="Project name to scan")],
+    plugin: Annotated[str | None, typer.Option("--plugin", help="Specific plugin to run")] = None,
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Scan a specific project with its configured plugins."""
+    mgr, _ = _get_project_manager(policy)
+
+    try:
+        scan_result = mgr.scan_project(name, plugin_name=plugin)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"\n[bold]Scan results for '{name}'[/bold] ({scan_result.scan_time[:19]})\n")
+    for r in scan_result.results:
+        if r.ok:
+            console.print(Panel(r.message, title="[green]OK[/green]", border_style="green"))
+        else:
+            console.print(Panel(r.message, title="[red]FAIL[/red]", border_style="red"))
+
+
+@projects_app.command(name="scan-all")
+def projects_scan_all(
+    plugin: Annotated[str | None, typer.Option("--plugin", help="Specific plugin for all")] = None,
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Scan all auto_scan projects."""
+    mgr, _ = _get_project_manager(policy)
+    all_results = mgr.scan_all(plugin_name=plugin)
+
+    if not all_results:
+        console.print("[dim]No projects to scan (none registered or all have auto_scan=false).[/dim]")
+        return
+
+    for proj_name, scan_result in all_results.items():
+        ok = sum(1 for r in scan_result.results if r.ok)
+        total = len(scan_result.results)
+        status = "[green]OK[/green]" if ok == total else f"[yellow]{ok}/{total}[/yellow]"
+        console.print(f"  {proj_name}: {status}")
+
+    total_scans = sum(len(sr.results) for sr in all_results.values())
+    total_ok = sum(sum(1 for r in sr.results if r.ok) for sr in all_results.values())
+    console.print(f"\n[bold]{total_ok}/{total_scans}[/bold] checks passed across {len(all_results)} project(s).")
+
+
+@projects_app.command(name="report")
+def projects_report(
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Show a summary report across all projects."""
+    mgr, _ = _get_project_manager(policy)
+    report = mgr.get_report()
+
+    if not report:
+        console.print("[dim]No projects registered.[/dim]")
+        return
+
+    table = Table(title="Project Report")
+    table.add_column("Project", style="cyan")
+    table.add_column("Path")
+    table.add_column("Plugins", style="magenta")
+    table.add_column("Auto-Scan")
+    table.add_column("Last Scan", style="dim")
+
+    for name, info in report.items():
+        auto = "[green]yes[/green]" if info["auto_scan"] else "[red]no[/red]"
+        table.add_row(name, info["path"], ", ".join(info["plugins"]), auto, info["last_scan"])
+
+    console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 commands — smart fix suggestions
+# ---------------------------------------------------------------------------
+
+_SEVERITY_STYLES = {
+    "critical": ("bold red", "RED"),
+    "high": ("red", "RED"),
+    "medium": ("yellow", "YLW"),
+    "low": ("green", "GRN"),
+    "info": ("dim", "INF"),
+}
+
+fix_app = typer.Typer(help="AI-powered fix suggestions (requires Ollama).")
+app.add_typer(fix_app, name="fix")
+
+
+def _display_suggestions(suggestions: object, model: str) -> None:
+    """Render FixSuggestions as a Rich panel."""
+    from safeclaw.fixer import FixSuggestions
+
+    assert isinstance(suggestions, FixSuggestions)
+
+    lines: list[str] = []
+    for item in suggestions.findings:
+        style, badge = _SEVERITY_STYLES.get(item.severity.lower(), ("dim", "???"))
+        lines.append(f"[{style}]{badge} {item.severity.upper()}[/{style}] | {item.original}")
+        lines.append(f"  [dim]Why:[/dim] {item.explanation}")
+        lines.append(f"  [dim]Fix:[/dim] {item.fix}")
+        lines.append("")
+
+    if suggestions.summary:
+        lines.append(f"[bold]Summary:[/bold] {suggestions.summary}")
+
+    body = "\n".join(lines) if lines else "[dim]No suggestions generated.[/dim]"
+    console.print(Panel(body, title=f"Smart Fix Suggestions (powered by {model})", border_style="yellow"))
+
+
+def _fix_with_plugin(
+    policy_path: Path, plugin: str, target: Path, fix_method: str
+) -> None:
+    """Run a plugin scan, then feed results to SmartFixer."""
+    from safeclaw.fixer import FixerConnectionError, FixerDisabledError, FixerParseError, SmartFixer
+
+    pol = load_policy(policy_path)
+    result = run_plugin(pol, plugin, target)
+
+    if not result.ok:
+        console.print(f"[red]Scan failed: {result.message}[/red]")
+        raise typer.Exit(code=1)
+
+    console.print(Panel(result.message, title=f"[green]{plugin}[/green]", border_style="green"))
+    console.print("\n[bold]Analyzing with AI...[/bold]\n")
+
+    try:
+        fixer = SmartFixer(pol)
+        method = getattr(fixer, fix_method)
+        suggestions = method(result.message)
+    except FixerDisabledError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except FixerConnectionError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except FixerParseError as exc:
+        console.print(f"[red]Failed to parse AI response: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _display_suggestions(suggestions, pol.planner.model)
+
+
+@fix_app.command(name="todo")
+def fix_todo(
+    path: Annotated[Path, typer.Argument(help="Directory or file to scan")] = Path("."),
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Scan for TODOs then get AI fix suggestions."""
+    _fix_with_plugin(policy, "todo_scan", path, "fix_todos")
+
+
+@fix_app.command(name="secrets")
+def fix_secrets(
+    path: Annotated[Path, typer.Argument(help="Directory or file to scan")] = Path("."),
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Scan for secrets then get AI suggestions for proper handling."""
+    _fix_with_plugin(policy, "secrets_scan", path, "fix_secrets")
+
+
+@fix_app.command(name="deps")
+def fix_deps(
+    path: Annotated[Path, typer.Argument(help="Project directory")] = Path("."),
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Check deps then get AI suggestions for updates."""
+    _fix_with_plugin(policy, "deps_audit", path, "fix_deps")
+
+
+@fix_app.command(name="all")
+def fix_all(
+    path: Annotated[Path, typer.Argument(help="Directory to scan")] = Path("."),
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Run all scans then get combined AI analysis."""
+    from safeclaw.fixer import FixerConnectionError, FixerDisabledError, FixerParseError, SmartFixer
+
+    pol = load_policy(policy)
+
+    # Run available scans and collect results
+    scan_plugins = ["todo_scan", "secrets_scan", "deps_audit"]
+    combined_output: list[str] = []
+
+    for plugin in scan_plugins:
+        if plugin not in pol.allowed_plugins:
+            continue
+        result = run_plugin(pol, plugin, path)
+        if result.ok:
+            combined_output.append(f"=== {plugin} ===\n{result.message}")
+
+    if not combined_output:
+        console.print("[dim]No scan results to analyze.[/dim]")
+        return
+
+    all_output = "\n\n".join(combined_output)
+    console.print(Panel(all_output, title="[green]Combined Scan Results[/green]", border_style="green"))
+    console.print("\n[bold]Analyzing with AI...[/bold]\n")
+
+    try:
+        fixer = SmartFixer(pol)
+        suggestions = fixer.analyze_findings(
+            all_output, context="Combined results from multiple SafeClaw security scans."
+        )
+    except FixerDisabledError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except FixerConnectionError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except FixerParseError as exc:
+        console.print(f"[red]Failed to parse AI response: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _display_suggestions(suggestions, pol.planner.model)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 commands — MCP server
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="mcp")
+def mcp_cmd(
+    list_tools: Annotated[
+        bool, typer.Option("--list-tools", help="List all available MCP tools")
+    ] = False,
+    setup: Annotated[
+        bool, typer.Option("--setup", help="Print setup instructions for Claude Code")
+    ] = False,
+) -> None:
+    """Start the SafeClaw MCP server (stdio mode for Claude Code)."""
+    from safeclaw.mcp_server import get_setup_instructions, list_tools as get_tools, run_server
+
+    if list_tools:
+        table = Table(title="SafeClaw MCP Tools")
+        table.add_column("Tool", style="cyan")
+        table.add_column("Description")
+        for name, desc in get_tools():
+            table.add_row(name, desc)
+        console.print(table)
+        return
+
+    if setup:
+        console.print(get_setup_instructions())
+        return
+
+    run_server()

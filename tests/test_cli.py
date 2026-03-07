@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -127,3 +128,171 @@ class TestCliPlan:
         )
         assert result.exit_code == 1
         assert "disabled" in result.output.lower() or "Planner" in result.output
+
+    def test_plan_without_dry_run_planner_disabled(self, sample_project: Path) -> None:
+        """Plan command without --dry-run also fails when planner is disabled."""
+        policy_path = str(sample_project / "policy.yaml")
+        result = runner.invoke(app, ["plan", "scan for issues", "--policy", policy_path])
+        assert result.exit_code == 1
+
+
+class TestCliDashboard:
+    def test_dashboard_disabled_exits_with_error(self, sample_project: Path) -> None:
+        """Dashboard command should fail if dashboard is disabled in policy."""
+        policy_path = str(sample_project / "policy.yaml")
+        result = runner.invoke(app, ["dashboard", "--policy", policy_path])
+        assert result.exit_code == 1
+        assert "disabled" in result.output.lower()
+
+
+class TestCliRunAndDisplay:
+    def test_denied_plugin_exits_code_1(self, sample_project: Path) -> None:
+        """Running a plugin not in the allowlist should exit with code 1."""
+        policy_path = str(sample_project / "policy.yaml")
+        # Remove all allowed plugins to make todo_scan denied
+        policy_yaml = sample_project / "policy.yaml"
+        policy_yaml.write_text(
+            "project_root: " + str(sample_project).replace("\\", "/") + "\nallowed_plugins: []\n",
+            encoding="utf-8",
+        )
+        result = runner.invoke(app, ["todo", str(sample_project), "--policy", policy_path])
+        assert result.exit_code == 1
+        assert "not in the allowed list" in result.output
+
+
+class TestCliPlanExecution:
+    def test_plan_dry_run_with_enabled_planner(self, sample_project: Path) -> None:
+        """Plan --dry-run with enabled planner shows plan without executing."""
+        policy_path = str(sample_project / "policy.yaml")
+        policy_yaml = sample_project / "policy.yaml"
+        policy_yaml.write_text(
+            "project_root: " + str(sample_project).replace("\\", "/") + "\n"
+            "allowed_plugins:\n"
+            "  - todo_scan\n"
+            "  - secrets_scan\n"
+            "planner:\n"
+            "  enabled: true\n"
+            "  backend: ollama\n"
+            "  base_url: http://localhost:11434\n",
+            encoding="utf-8",
+        )
+
+        mock_response = '{"steps": [{"plugin": "todo_scan", "target": "./", "reason": "scan"}]}'
+
+        from safeclaw.planner import _OllamaBackend
+
+        with patch.object(_OllamaBackend, "call", return_value=mock_response):
+            result = runner.invoke(
+                app,
+                ["plan", "scan for issues", "--dry-run", "--policy", policy_path],
+            )
+        assert result.exit_code == 0
+        assert "todo_scan" in result.output
+        assert "Dry run" in result.output
+
+    def test_plan_with_rejected_steps(self, sample_project: Path) -> None:
+        """Plan with disallowed plugins shows rejection."""
+        policy_path = str(sample_project / "policy.yaml")
+        policy_yaml = sample_project / "policy.yaml"
+        policy_yaml.write_text(
+            "project_root: " + str(sample_project).replace("\\", "/") + "\n"
+            "allowed_plugins:\n"
+            "  - todo_scan\n"
+            "planner:\n"
+            "  enabled: true\n"
+            "  backend: ollama\n"
+            "  base_url: http://localhost:11434\n",
+            encoding="utf-8",
+        )
+
+        mock_response = '{"steps": [{"plugin": "evil_plugin", "target": "./", "reason": "hack"}]}'
+
+        from safeclaw.planner import _OllamaBackend
+
+        with patch.object(_OllamaBackend, "call", return_value=mock_response):
+            result = runner.invoke(
+                app,
+                ["plan", "do something bad", "--dry-run", "--policy", policy_path],
+            )
+        assert result.exit_code == 1
+        assert "validation failed" in result.output.lower() or "Rejected" in result.output
+
+    def test_plan_execute_auto_with_confirmation_required(self, sample_project: Path) -> None:
+        """--auto with require_confirmation should fail."""
+        policy_path = str(sample_project / "policy.yaml")
+        policy_yaml = sample_project / "policy.yaml"
+        policy_yaml.write_text(
+            "project_root: " + str(sample_project).replace("\\", "/") + "\n"
+            "allowed_plugins:\n"
+            "  - todo_scan\n"
+            "planner:\n"
+            "  enabled: true\n"
+            "  backend: ollama\n"
+            "  base_url: http://localhost:11434\n"
+            "  require_confirmation: true\n",
+            encoding="utf-8",
+        )
+
+        mock_response = '{"steps": [{"plugin": "todo_scan", "target": "./", "reason": "scan"}]}'
+
+        from safeclaw.planner import _OllamaBackend
+
+        with patch.object(_OllamaBackend, "call", return_value=mock_response):
+            result = runner.invoke(
+                app,
+                ["plan", "scan", "--auto", "--policy", policy_path],
+            )
+        assert result.exit_code == 1
+
+    def test_plan_connection_error(self, sample_project: Path) -> None:
+        """Plan with connection error should show error message."""
+        policy_path = str(sample_project / "policy.yaml")
+        policy_yaml = sample_project / "policy.yaml"
+        policy_yaml.write_text(
+            "project_root: " + str(sample_project).replace("\\", "/") + "\n"
+            "allowed_plugins:\n"
+            "  - todo_scan\n"
+            "planner:\n"
+            "  enabled: true\n"
+            "  backend: ollama\n"
+            "  base_url: http://localhost:11434\n",
+            encoding="utf-8",
+        )
+
+        from safeclaw.planner import PlanConnectionError, _OllamaBackend
+
+        def mock_call(self, policy, system, user_msg):
+            raise PlanConnectionError("Ollama not running")
+
+        with patch.object(_OllamaBackend, "call", mock_call):
+            result = runner.invoke(
+                app,
+                ["plan", "scan", "--policy", policy_path],
+            )
+        assert result.exit_code == 1
+        assert "Connection error" in result.output or "not running" in result.output
+
+    def test_plan_parse_error(self, sample_project: Path) -> None:
+        """Plan with parse error should show raw response."""
+        policy_path = str(sample_project / "policy.yaml")
+        policy_yaml = sample_project / "policy.yaml"
+        policy_yaml.write_text(
+            "project_root: " + str(sample_project).replace("\\", "/") + "\n"
+            "allowed_plugins:\n"
+            "  - todo_scan\n"
+            "planner:\n"
+            "  enabled: true\n"
+            "  backend: ollama\n"
+            "  base_url: http://localhost:11434\n",
+            encoding="utf-8",
+        )
+
+        from safeclaw.planner import _OllamaBackend
+
+        with patch.object(_OllamaBackend, "call", return_value="I cannot do that"):
+            result = runner.invoke(
+                app,
+                ["plan", "scan", "--policy", policy_path],
+            )
+        assert result.exit_code == 1
+        assert "parse" in result.output.lower() or "Failed" in result.output

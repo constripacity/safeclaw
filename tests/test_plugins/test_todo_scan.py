@@ -29,3 +29,20 @@ class TestTodoScan:
         message, touched = run(policy, target)
         assert "TODO" in message
         assert len(touched) == 1
+
+    def test_large_file_skipped(self, tmp_path: Path) -> None:
+        """Files exceeding max_file_mb should be skipped."""
+        from safeclaw.policy import Limits
+
+        pol = Policy(project_root=str(tmp_path), limits=Limits(max_file_mb=0))
+        (tmp_path / "big.py").write_text("# TODO: huge\n", encoding="utf-8")
+        msg, touched = run(pol, tmp_path)
+        assert "No TODO" in msg
+        assert touched == []
+
+    def test_non_text_extension_ignored(self, tmp_path: Path) -> None:
+        """Binary file extensions should not be scanned."""
+        pol = Policy(project_root=str(tmp_path))
+        (tmp_path / "data.bin").write_bytes(b"TODO in binary")
+        msg, touched = run(pol, tmp_path)
+        assert "No TODO" in msg

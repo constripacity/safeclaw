@@ -28,3 +28,23 @@ class TestLogSummarize:
         pol = Policy(project_root=str(tmp_path))
         message, _ = run(pol, log)
         assert "No errors" in message
+
+    def test_large_file_rejected(self, tmp_path: Path) -> None:
+        """Files exceeding max_file_mb should be rejected."""
+        from safeclaw.policy import Limits
+
+        pol = Policy(project_root=str(tmp_path), limits=Limits(max_file_mb=0))
+        log = tmp_path / "big.log"
+        log.write_text("[ERROR] something\n", encoding="utf-8")
+        msg, _ = run(pol, log)
+        assert "too large" in msg.lower()
+
+    def test_many_error_lines_truncated(self, tmp_path: Path) -> None:
+        """More than 20 error lines should show truncation message."""
+        pol = Policy(project_root=str(tmp_path))
+        lines = "\n".join(f"[ERROR] error line {i}" for i in range(30))
+        log = tmp_path / "errors.log"
+        log.write_text(lines, encoding="utf-8")
+        msg, _ = run(pol, log)
+        assert "... and" in msg
+        assert "more" in msg

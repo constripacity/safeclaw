@@ -17,9 +17,12 @@ SafeClaw is a **sandboxed local dev assistant** — a Python CLI tool inspired b
 - **PyYAML** – policy files
 - **Rich** – terminal output formatting
 - **FastAPI** (Phase 2) – optional local web dashboard
+- **Textual** (Phase 3) – terminal UI framework (by Rich creators)
+- **watchdog** (Phase 4) – cross-platform file system monitoring
+- **MCP SDK** (Phase 4) – Model Context Protocol server for Claude Code
+- **httpx** – HTTP client for Ollama/API calls
 - **pytest** – testing
 - **Ruff** – linting
-- **Docker** (Phase 3) – sandboxed execution
 
 ## Architecture Principles
 1. **No shell execution by default** – `allow_shell: false` in policy.yaml
@@ -38,8 +41,6 @@ safeclaw/
 ├── README.de.md               # German version
 ├── pyproject.toml
 ├── policy.yaml
-├── Dockerfile
-├── docker-compose.yml
 ├── .gitignore
 ├── .github/
 │   └── workflows/
@@ -51,13 +52,22 @@ safeclaw/
 │   └── plugin-guide.md
 ├── safeclaw/
 │   ├── __init__.py
-│   ├── cli.py                 # Typer CLI entry point
+│   ├── cli.py                 # Typer CLI entry point (20+ commands)
 │   ├── policy.py              # Policy loading + validation
 │   ├── audit.py               # Audit logging
 │   ├── redaction.py           # Secret pattern redaction
 │   ├── runner.py              # Plugin executor + policy enforcement
+│   ├── hooks.py               # Pre-commit hook install/uninstall/run
+│   ├── export.py              # Audit log export (CSV/JSON/HTML)
+│   ├── watcher.py             # (Phase 4, local) Watchdog-based file watcher
+│   ├── projects.py            # (Phase 4, local) Multi-project manager
+│   ├── fixer.py               # (Phase 4, local) AI fix suggestions via Ollama
+│   ├── mcp_server.py          # (Phase 4, local) MCP server for Claude Code
 │   ├── planner.py             # (Phase 2) LLM planner module
-│   ├── dashboard.py           # (Phase 2) FastAPI local web UI
+│   ├── dashboard.py           # (Phase 2+3) FastAPI web UI + /api/* + /golden
+│   ├── tui.py                 # (Phase 3, local only) Textual terminal UI
+│   ├── templates/
+│   │   └── golden.html        # (Phase 3, local only) Gold/dark web dashboard
 │   └── plugins/
 │       ├── __init__.py
 │       ├── base.py            # Plugin base class / interface
@@ -71,11 +81,23 @@ safeclaw/
 │   ├── test_redaction.py
 │   ├── test_policy.py
 │   ├── test_runner.py
+│   ├── test_cli.py
+│   ├── test_dashboard.py
+│   ├── test_planner.py
+│   ├── test_audit.py
+│   ├── test_hooks.py
+│   ├── test_export.py
+│   ├── test_watcher.py
+│   ├── test_projects.py
+│   ├── test_fixer.py
+│   ├── test_mcp_server.py
 │   ├── test_plugins/
 │   │   ├── test_todo_scan.py
 │   │   ├── test_secrets_scan.py
-│   │   └── test_log_summarize.py
-│   └── test_audit.py
+│   │   ├── test_log_summarize.py
+│   │   ├── test_deps_audit.py
+│   │   └── test_repo_stats.py
+│   └── ...
 └── examples/
     ├── sample-repo/            # Dummy repo for demo runs
     │   ├── main.py
@@ -84,13 +106,15 @@ safeclaw/
     └── demo.sh                 # One-liner demo script
 ```
 
+> **Note:** `safeclaw/tui.py`, `safeclaw/templates/`, `safeclaw/static/`, and all Phase 4 files (`projects.py`, `watcher.py`, `fixer.py`, `mcp_server.py` + their tests) are gitignored — they are local-only files that do not get pushed to GitHub.
+
 ## Coding Conventions
 - Use type hints everywhere
 - Docstrings on all public functions (Google style)
 - No `# type: ignore` without explanation
 - All paths use `pathlib.Path`, never string concatenation
 - Never store secrets in code — use redaction patterns
-- Test coverage target: >80%
+- Test coverage target: >90%
 - Line length: 100 (Ruff config)
 
 ## Development Phases
@@ -119,10 +143,22 @@ safeclaw/
 - [x] Planner + dashboard tests
 - [x] docs/planner-guide.md
 
-### Phase 3: Docker Sandboxing
-- [ ] Dockerfile — run SafeClaw inside container
-- [ ] docker-compose.yml — mount only project folder
-- [ ] Document sandboxing approach in docs/
+### Phase 3: Local UIs (local-only, gitignored)
+- [x] `safeclaw tui` — full-screen Textual app (Scanner, Audit Log, Planner tabs)
+- [x] `safeclaw dashboard --golden` — premium gold/dark web dashboard (single HTML file)
+- [x] `/api/*` JSON endpoints added to dashboard.py (status, audit, plugins, policy, scan, plan, plan/execute)
+- [x] Gold/dark color scheme (#0a0a0a bg, #d4a843 gold accents)
+- [x] F1-F5 keyboard shortcuts in TUI, bearer token auth in web UI
+- [x] All local UI files gitignored — never pushed to GitHub
+
+### Phase 4: Utilities & Integrations
+- [x] `safeclaw export` — audit log export to CSV, JSON, or HTML
+- [x] `safeclaw watch` — watchdog-based file watcher with auto plugin runs
+- [x] `safeclaw init` / `safeclaw deinit` — pre-commit hook integration (secrets_scan on staged files)
+- [x] `safeclaw projects` — multi-project manager (add/remove/scan/scan-all/report)
+- [x] `safeclaw fix` — AI-powered fix suggestions via Ollama (todo/secrets/deps/all)
+- [x] `safeclaw mcp` — MCP server exposing 10 tools to Claude Code (stdio transport)
+- [x] 297 tests passing, coverage target maintained
 
 ## Key Concepts Demonstrated
 This project demonstrates understanding of:
@@ -132,3 +168,7 @@ This project demonstrates understanding of:
 - **Supply chain security** — no arbitrary third-party plugin execution
 - **DevOps fundamentals** — CI/CD, Docker, linting, testing
 - **Clean architecture** — separation of concerns, plugin system, config validation
+- **Git integration** — pre-commit hooks for automated secret scanning
+- **Multi-project management** — registry-based scanning across multiple repos
+- **AI-assisted remediation** — Ollama-powered fix suggestions with severity ranking
+- **Tool interoperability** — MCP server enabling Claude Code to use SafeClaw as a tool

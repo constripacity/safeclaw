@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from starlette.testclient import TestClient
@@ -99,3 +100,132 @@ class TestDashboardConfig:
         token2 = get_or_create_token(tmp_path)
         assert token1 == token2
         assert len(token1) > 20
+
+
+class TestApiEndpoints:
+    def test_api_status(self, client: TestClient) -> None:
+        resp = client.get("/api/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "project_root" in data
+        assert "plugins_active" in data
+        assert "total_scans" in data
+        assert isinstance(data["network"], bool)
+        assert isinstance(data["shell"], bool)
+
+    def test_api_audit(self, client: TestClient) -> None:
+        resp = client.get("/api/audit")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "entries" in data
+        assert "total" in data
+        assert "page" in data
+        assert "pages" in data
+
+    def test_api_audit_pagination(self, client: TestClient) -> None:
+        resp = client.get("/api/audit?page=1&limit=5")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["limit"] == 5
+        assert data["page"] == 1
+
+    def test_api_audit_filter_by_status(self, client: TestClient) -> None:
+        resp = client.get("/api/audit?status=ok")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data["entries"], list)
+
+    def test_api_plugins(self, client: TestClient) -> None:
+        resp = client.get("/api/plugins")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        names = [p["name"] for p in data]
+        assert "todo_scan" in names
+        for p in data:
+            assert "name" in p
+            assert "allowed" in p
+            assert "description" in p
+
+    def test_api_policy(self, client: TestClient) -> None:
+        resp = client.get("/api/policy")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "project_root" in data
+        assert "allowed_plugins" in data
+        assert "limits" in data
+
+    def test_api_scan_allowed_plugin(self, client: TestClient, dashboard_policy: Policy) -> None:
+        root = dashboard_policy.root_path()
+        (root / "test.py").write_text("# TODO: fix\n", encoding="utf-8")
+        resp = client.post("/api/scan", json={"plugin": "todo_scan", "target": str(root)})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+
+    def test_api_scan_denied_plugin(self, client: TestClient) -> None:
+        resp = client.post("/api/scan", json={"plugin": "evil_plugin"})
+        assert resp.status_code == 403
+
+
+class TestApiAuth:
+    def test_api_get_endpoints_require_auth(self, unauth_client: TestClient) -> None:
+        for path in ["/api/status", "/api/audit", "/api/plugins", "/api/policy"]:
+            resp = unauth_client.get(path)
+            assert resp.status_code == 401, f"{path} should require auth"
+
+    def test_api_post_endpoints_require_auth(self, unauth_client: TestClient) -> None:
+        for path in ["/api/scan", "/api/plan", "/api/plan/execute"]:
+            resp = unauth_client.post(path, json={"plugin": "x", "task": "x"})
+            assert resp.status_code == 401, f"{path} should require auth"
+
+
+class TestPlanEndpoints:
+    def test_plan_endpoint_planner_disabled(self, client: TestClient) -> None:
+        resp = client.post("/plan", json={"task": "scan for issues"})
+        assert resp.status_code == 400
+
+    def test_api_plan_planner_disabled(self, client: TestClient) -> None:
+        resp = client.post("/api/plan", json={"task": "scan everything"})
+        assert resp.status_code == 400
+
+    def test_api_plan_execute_planner_disabled(self, client: TestClient) -> None:
+        resp = client.post("/api/plan/execute", json={"task": "scan"})
+        assert resp.status_code == 400
+
+
+class TestGoldenDashboard:
+    def test_golden_page_returns_404_without_template(self, tmp_path: Path) -> None:
+        """Golden page returns 404 when template file does not exist."""
+        pol = Policy(
+            project_root=str(tmp_path),
+            allowed_plugins=["todo_scan"],
+            dashboard=DashboardConfig(enabled=True),
+        )
+        app = create_app(pol)
+        token = get_or_create_token(pol.root_path())
+        c = TestClient(app, headers={"Authorization": f"Bearer {token}"})
+        orig_exists = Path.exists
+
+        def fake_exists(self: Path) -> bool:
+            if "golden.html" in str(self):
+                return False
+            return orig_exists(self)
+
+        with patch.object(Path, "exists", fake_exists):
+            resp = c.get("/golden")
+        assert resp.status_code == 404
+
+    def test_golden_redirect(self, tmp_path: Path) -> None:
+        """When golden=True, / redirects to /golden."""
+        pol = Policy(
+            project_root=str(tmp_path),
+            allowed_plugins=["todo_scan"],
+            dashboard=DashboardConfig(enabled=True),
+        )
+        app = create_app(pol, golden=True)
+        token = get_or_create_token(pol.root_path())
+        c = TestClient(app, headers={"Authorization": f"Bearer {token}"}, follow_redirects=False)
+        resp = c.get("/")
+        assert resp.status_code == 302
+        assert "/golden" in resp.headers["location"]

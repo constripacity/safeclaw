@@ -47,3 +47,51 @@ class TestAudit:
         )
         entries = read_audit(tmp_path, last_n=1)
         assert entries[0]["touched_files"] == ["a.py", "b.py"]
+
+
+class TestAuditEdgeCases:
+    def test_corrupted_jsonl_line_skipped(self, tmp_path: Path) -> None:
+        """read_audit should skip corrupted JSONL lines gracefully."""
+        audit_dir = tmp_path / ".safeclaw"
+        audit_dir.mkdir()
+        audit_file = audit_dir / "audit.jsonl"
+        audit_file.write_text(
+            "not valid json\n"
+            '{"action":"test","status":"ok","detail":"valid","touched_files":[],'
+            '"timestamp":"2026-01-01T00:00:00"}\n',
+            encoding="utf-8",
+        )
+        entries = read_audit(tmp_path, last_n=10)
+        assert len(entries) == 1
+        assert entries[0]["action"] == "test"
+
+    def test_last_n_larger_than_entries(self, tmp_path: Path) -> None:
+        """Requesting more entries than exist should return all entries."""
+        write_audit(tmp_path, AuditEvent(action="only", status="ok"))
+        entries = read_audit(tmp_path, last_n=100)
+        assert len(entries) == 1
+
+    def test_last_n_zero_returns_empty(self, tmp_path: Path) -> None:
+        write_audit(tmp_path, AuditEvent(action="test", status="ok"))
+        entries = read_audit(tmp_path, last_n=0)
+        assert entries == []
+
+    def test_multiple_writes_append(self, tmp_path: Path) -> None:
+        for i in range(10):
+            write_audit(tmp_path, AuditEvent(action=f"step{i}", status="ok"))
+        entries = read_audit(tmp_path, last_n=100)
+        assert len(entries) == 10
+
+    def test_empty_detail_and_touched_files(self, tmp_path: Path) -> None:
+        write_audit(tmp_path, AuditEvent(action="test", status="ok"))
+        entries = read_audit(tmp_path, last_n=1)
+        assert entries[0]["detail"] == ""
+        assert entries[0]["touched_files"] == []
+
+    def test_write_creates_directory(self, tmp_path: Path) -> None:
+        """write_audit should create .safeclaw/ if it doesn't exist."""
+        new_root = tmp_path / "brand_new_project"
+        new_root.mkdir()
+        path = write_audit(new_root, AuditEvent(action="test", status="ok"))
+        assert path.exists()
+        assert (new_root / ".safeclaw" / "audit.jsonl").exists()

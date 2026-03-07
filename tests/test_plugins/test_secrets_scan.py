@@ -26,3 +26,23 @@ class TestSecretsScan:
         pol = Policy(project_root=str(tmp_path))
         message, _ = run(pol, tmp_path)
         assert "No secrets" in message
+
+    def test_single_file_mode(self, policy: Policy, tmp_project: Path) -> None:
+        """Scanning a single file should work."""
+        target = tmp_project / ".env"
+        msg, touched = run(policy, target)
+        assert "OPENAI_KEY" in msg
+        assert len(touched) == 1
+
+    def test_max_files_limit(self, tmp_path: Path) -> None:
+        """Only max_files files should be scanned."""
+        from safeclaw.policy import Limits
+
+        pol = Policy(
+            project_root=str(tmp_path),
+            limits=Limits(max_files=1),
+        )
+        for i in range(5):
+            (tmp_path / f"file{i}.py").write_text(f"key = 'sk-{'a' * 30}'\n", encoding="utf-8")
+        _, touched = run(pol, tmp_path)
+        assert len(touched) == 1
