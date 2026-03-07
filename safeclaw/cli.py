@@ -542,8 +542,7 @@ def projects_scan_all(
     total_ok = sum(sum(1 for r in sr.results if r.ok) for sr in all_results.values())
     n_proj = len(all_results)
     console.print(
-        f"\n[bold]{total_ok}/{total_scans}[/bold] checks passed"
-        f" across {n_proj} project(s).",
+        f"\n[bold]{total_ok}/{total_scans}[/bold] checks passed across {n_proj} project(s).",
     )
 
 
@@ -611,9 +610,7 @@ def _display_suggestions(suggestions: object, model: str) -> None:
     console.print(Panel(body, title=title, border_style="yellow"))
 
 
-def _fix_with_plugin(
-    policy_path: Path, plugin: str, target: Path, fix_method: str
-) -> None:
+def _fix_with_plugin(policy_path: Path, plugin: str, target: Path, fix_method: str) -> None:
     """Run a plugin scan, then feed results to SmartFixer."""
     from safeclaw.fixer import FixerConnectionError, FixerDisabledError, FixerParseError, SmartFixer
 
@@ -697,9 +694,13 @@ def fix_all(
         return
 
     all_output = "\n\n".join(combined_output)
-    console.print(Panel(
-        all_output, title="[green]Combined Scan Results[/green]", border_style="green",
-    ))
+    console.print(
+        Panel(
+            all_output,
+            title="[green]Combined Scan Results[/green]",
+            border_style="green",
+        )
+    )
     console.print("\n[bold]Analyzing with AI...[/bold]\n")
 
     try:
