@@ -68,5 +68,8 @@ def policy(tmp_project: Path) -> Policy:
             "secrets_scan",
             "deps_audit",
             "repo_stats",
+            "license_check",
+            "complexity_scan",
+            "git_history",
         ],
     )

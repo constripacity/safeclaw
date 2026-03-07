@@ -15,6 +15,9 @@ allowed_plugins:
   - secrets_scan
   - deps_audit
   - repo_stats
+  - license_check
+  - complexity_scan
+  - git_history
 
 # Resource limits
 limits:

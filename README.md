@@ -164,6 +164,9 @@ limits:
 | `secrets_scan` | Detect hardcoded API keys and credentials |
 | `deps_audit` | Check declared dependencies for issues |
 | `repo_stats` | Count files, lines of code, file type distribution |
+| `license_check` | Check for license files and identify license type |
+| `complexity_scan` | Scan Python files for code complexity issues |
+| `git_history` | Analyze git history (reads .git directory directly) |
 
 ## LLM Planner (Phase 2)
 
@@ -342,6 +345,21 @@ safeclaw tui
 ```
 
 Keyboard shortcuts: F1=Todo, F2=Secrets, F3=Stats, F4=Deps, F5=Log, Q=Quit.
+
+## Docker
+
+```bash
+# Build the image
+docker build -t safeclaw .
+
+# Run a scan (mount your project as /project)
+docker run -v $(pwd):/project safeclaw todo /project
+
+# Start the dashboard
+docker run -p 8321:8321 -v $(pwd):/project safeclaw dashboard
+```
+
+Includes a HEALTHCHECK on `/health` and runs as a non-root user.
 
 ## Why This Exists
 

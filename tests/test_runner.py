@@ -62,7 +62,16 @@ class TestRunPlugin:
 class TestGetRegistry:
     def test_registry_contains_all_builtins(self) -> None:
         registry = get_registry()
-        expected = {"todo_scan", "log_summarize", "secrets_scan", "deps_audit", "repo_stats"}
+        expected = {
+            "todo_scan",
+            "log_summarize",
+            "secrets_scan",
+            "deps_audit",
+            "repo_stats",
+            "license_check",
+            "complexity_scan",
+            "git_history",
+        }
         assert expected == set(registry.keys())
 
     def test_registry_values_are_callable(self) -> None:

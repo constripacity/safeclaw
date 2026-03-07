@@ -4,17 +4,61 @@ from __future__ import annotations
 
 import secrets
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any
 
 import yaml
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from safeclaw import __version__
 from safeclaw.audit import AuditEvent, read_audit, write_audit
 from safeclaw.policy import Policy
 from safeclaw.runner import get_registry, run_plan, run_plugin
+
+# ---------------------------------------------------------------------------
+# Rate limiter
+# ---------------------------------------------------------------------------
+
+_GET_LIMIT = 60  # requests per minute
+_POST_LIMIT = 30
+
+
+class _RateLimiter:
+    """Simple in-memory sliding window rate limiter per IP."""
+
+    def __init__(self) -> None:
+        self._windows: dict[str, deque[float]] = {}
+
+    def is_allowed(self, key: str, limit: int, window: float = 60.0) -> bool:
+        now = time.monotonic()
+        if key not in self._windows:
+            self._windows[key] = deque()
+        dq = self._windows[key]
+        while dq and dq[0] < now - window:
+            dq.popleft()
+        if len(dq) >= limit:
+            return False
+        dq.append(now)
+        return True
+
+
+_rate_limiter = _RateLimiter()
+
+
+# ---------------------------------------------------------------------------
+# Security headers middleware
+# ---------------------------------------------------------------------------
+
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline'",
+}
 
 # ---------------------------------------------------------------------------
 # Token management
@@ -117,6 +161,37 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
     app = FastAPI(title="SafeClaw Dashboard", docs_url=None, redoc_url=None)
     token = get_or_create_token(policy.root_path())
     _golden_mode = golden
+
+    # --- Rate limiting middleware ---
+    class RateLimitMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+            if request.url.path == "/health":
+                return await call_next(request)
+            client_ip = request.client.host if request.client else "unknown"
+            limit = _POST_LIMIT if request.method == "POST" else _GET_LIMIT
+            key = f"{client_ip}:{request.method}"
+            if not _rate_limiter.is_allowed(key, limit):
+                return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+            return await call_next(request)
+
+    app.add_middleware(RateLimitMiddleware)
+
+    # --- Security headers middleware ---
+    class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+            response = await call_next(request)
+            for header, value in _SECURITY_HEADERS.items():
+                response.headers[header] = value
+            if request.url.path.startswith("/api/") or request.url.path == "/health":
+                response.headers["Cache-Control"] = "no-store"
+            return response
+
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # --- Health endpoint (no auth) ---
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok", "version": __version__}
 
     # --- Auth dependency ---
     def require_auth(request: Request) -> None:

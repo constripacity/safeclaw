@@ -71,7 +71,10 @@ def main(
     console.print("    secrets     Scan for hardcoded secrets")
     console.print("    deps        Audit declared dependencies")
     console.print("    stats       Repository statistics")
-    console.print("    summarize   Summarise a log file\n")
+    console.print("    summarize   Summarise a log file")
+    console.print("    license     Check for license files")
+    console.print("    complexity  Scan for code complexity issues")
+    console.print("    git-history Analyze git history\n")
     console.print("  [yellow]Tools[/yellow]")
     console.print("    audit       View the audit log")
     console.print("    policy      Display current policy")
@@ -148,13 +151,52 @@ def stats(
     _run_and_display(policy, "repo_stats", path)
 
 
+@app.command(name="license")
+def license_cmd(
+    path: Annotated[Path, typer.Argument(help="Project directory")] = Path("."),
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Check for license files and identify license type."""
+    _run_and_display(policy, "license_check", path)
+
+
+@app.command()
+def complexity(
+    path: Annotated[Path, typer.Argument(help="Directory or file to scan")] = Path("."),
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Scan Python files for code complexity issues."""
+    _run_and_display(policy, "complexity_scan", path)
+
+
+@app.command(name="git-history")
+def git_history_cmd(
+    path: Annotated[Path, typer.Argument(help="Repository directory")] = Path("."),
+    policy: PolicyOption = _DEFAULT_POLICY,
+) -> None:
+    """Analyze git history (reads .git directory directly)."""
+    _run_and_display(policy, "git_history", path)
+
+
 @app.command()
 def audit(
     policy: PolicyOption = _DEFAULT_POLICY,
     count: Annotated[int, typer.Option("--count", "-n", help="Number of entries")] = 20,
+    rotate: Annotated[bool, typer.Option("--rotate", help="Rotate the audit log file")] = False,
 ) -> None:
     """Show recent audit log entries."""
     pol = load_policy(policy)
+
+    if rotate:
+        from safeclaw.audit import rotate_audit
+
+        result = rotate_audit(pol.root_path())
+        if result:
+            console.print(f"[green]Audit log rotated to {result.name}[/green]")
+        else:
+            console.print("[dim]Nothing to rotate (audit log is empty or missing).[/dim]")
+        return
+
     entries = read_audit(pol.root_path(), last_n=count)
 
     if not entries:

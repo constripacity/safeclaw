@@ -28,7 +28,16 @@ def _register_builtins() -> None:
     if _PLUGIN_REGISTRY:
         return
 
-    from safeclaw.plugins import deps_audit, log_summarize, repo_stats, secrets_scan, todo_scan
+    from safeclaw.plugins import (
+        complexity_scan,
+        deps_audit,
+        git_history,
+        license_check,
+        log_summarize,
+        repo_stats,
+        secrets_scan,
+        todo_scan,
+    )
 
     _PLUGIN_REGISTRY.update(
         {
@@ -37,6 +46,9 @@ def _register_builtins() -> None:
             "secrets_scan": secrets_scan.run,
             "deps_audit": deps_audit.run,
             "repo_stats": repo_stats.run,
+            "license_check": license_check.run,
+            "complexity_scan": complexity_scan.run,
+            "git_history": git_history.run,
         }
     )
 
