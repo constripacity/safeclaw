@@ -528,7 +528,8 @@ def projects_scan_all(
     all_results = mgr.scan_all(plugin_name=plugin)
 
     if not all_results:
-        console.print("[dim]No projects to scan (none registered or all have auto_scan=false).[/dim]")
+        msg = "No projects to scan (none registered or all have auto_scan=false)."
+        console.print(f"[dim]{msg}[/dim]")
         return
 
     for proj_name, scan_result in all_results.items():
@@ -539,7 +540,11 @@ def projects_scan_all(
 
     total_scans = sum(len(sr.results) for sr in all_results.values())
     total_ok = sum(sum(1 for r in sr.results if r.ok) for sr in all_results.values())
-    console.print(f"\n[bold]{total_ok}/{total_scans}[/bold] checks passed across {len(all_results)} project(s).")
+    n_proj = len(all_results)
+    console.print(
+        f"\n[bold]{total_ok}/{total_scans}[/bold] checks passed"
+        f" across {n_proj} project(s).",
+    )
 
 
 @projects_app.command(name="report")
@@ -602,7 +607,8 @@ def _display_suggestions(suggestions: object, model: str) -> None:
         lines.append(f"[bold]Summary:[/bold] {suggestions.summary}")
 
     body = "\n".join(lines) if lines else "[dim]No suggestions generated.[/dim]"
-    console.print(Panel(body, title=f"Smart Fix Suggestions (powered by {model})", border_style="yellow"))
+    title = f"Smart Fix Suggestions (powered by {model})"
+    console.print(Panel(body, title=title, border_style="yellow"))
 
 
 def _fix_with_plugin(
@@ -691,7 +697,9 @@ def fix_all(
         return
 
     all_output = "\n\n".join(combined_output)
-    console.print(Panel(all_output, title="[green]Combined Scan Results[/green]", border_style="green"))
+    console.print(Panel(
+        all_output, title="[green]Combined Scan Results[/green]", border_style="green",
+    ))
     console.print("\n[bold]Analyzing with AI...[/bold]\n")
 
     try:
@@ -727,7 +735,8 @@ def mcp_cmd(
     ] = False,
 ) -> None:
     """Start the SafeClaw MCP server (stdio mode for Claude Code)."""
-    from safeclaw.mcp_server import get_setup_instructions, list_tools as get_tools, run_server
+    from safeclaw.mcp_server import get_setup_instructions, run_server
+    from safeclaw.mcp_server import list_tools as get_tools
 
     if list_tools:
         table = Table(title="SafeClaw MCP Tools")

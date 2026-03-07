@@ -284,6 +284,32 @@ Autonomous AI agents (like OpenClaw, PicoClaw, etc.) are powerful but often run 
 
 This project was built as a portfolio project demonstrating understanding of security principles, clean architecture, and modern Python tooling.
 
+## Companion Project: Quantum ML for Cybersecurity
+
+SafeClaw's security-first philosophy extends into quantum computing research.
+A companion project applies a **Variational Quantum Classifier (VQC)** to
+network intrusion detection using the NSL-KDD dataset, executed on real
+IBM Quantum hardware (ibm_fez — Heron r2 processor, 156 qubits).
+
+**Key results:**
+
+| Method | Accuracy |
+|--------|----------|
+| Classical SVM (RBF) | 82.0% |
+| Classical Random Forest | 94.0% |
+| VQC Simulator (4 qubits, 12 params) | 78.0% |
+| VQC on IBM QPU | 4/100 iterations (877s QPU time) |
+
+The quantum classifier achieves 78% accuracy with only 12 trainable
+parameters — demonstrating that quantum feature spaces can capture
+meaningful patterns in network security data. The full pipeline was
+validated end-to-end on real quantum hardware with dynamical decoupling
+and measurement twirling noise mitigation.
+
+This research explores whether quantum advantage could emerge for
+cybersecurity classification tasks as quantum hardware scales beyond
+the current NISQ era.
+
 ## Development
 
 ```bash
