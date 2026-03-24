@@ -109,6 +109,32 @@ SafeClaw is built on the principle that **AI agents should never have more acces
 
 See [SECURITY.md](SECURITY.md) for the full threat model.
 
+## User Interface
+
+SafeClaw includes two optional UIs for interactive use:
+
+### Terminal UI
+
+Launch a full-screen interactive dashboard in your terminal with three tabs (Scanner, Audit Log, Planner), gold/dark theme, and keyboard shortcuts:
+
+```bash
+pip install safeclaw[tui]
+safeclaw tui
+```
+
+Keyboard shortcuts: F1=Todo, F2=Secrets, F3=Stats, F4=Deps, F5=Log, F6=Audit, Q=Quit.
+
+### Web Dashboard
+
+Start a local web dashboard with real-time scanning, audit log browsing, and LLM planner integration:
+
+```bash
+pip install safeclaw[dashboard]
+safeclaw dashboard
+```
+
+The dashboard runs on `127.0.0.1:8321` and requires bearer token authentication (generated on first run). Features a responsive dark/gold design with four pages: Dashboard, Scanner, Audit, and Planner.
+
 ## Companion Project: Quantum ML for Cybersecurity
 
 SafeClaw's security-first philosophy extends into quantum computing research.

@@ -472,7 +472,11 @@ def tui_cmd(
     policy: PolicyOption = _DEFAULT_POLICY,
 ) -> None:
     """Launch the interactive terminal UI."""
-    from safeclaw.tui import run_tui
+    try:
+        from safeclaw.tui import run_tui
+    except ImportError as exc:
+        console.print("[red]TUI requires textual. Install with: pip install safeclaw[tui][/red]")
+        raise typer.Exit(code=1) from exc
 
     run_tui(policy_path=policy)
 
@@ -501,8 +505,9 @@ def dashboard_cmd(
 
     ui_label = "Golden" if golden else "Standard"
     url_path = "/golden" if golden else "/"
+    full_url = f"http://{host}:{bind_port}{url_path}?token={token}"
     console.print(f"\n[bold]SafeClaw Dashboard[/bold] ({ui_label})")
-    console.print(f"  URL:   http://{host}:{bind_port}{url_path}")
+    console.print(f"  URL:   {full_url}")
     console.print(f"  Token: {token}\n")
 
     import uvicorn

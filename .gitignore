@@ -40,9 +40,8 @@ htmlcov/
 # Build prompts (not shipped)
 prompts/
 
-# Local UI (not for GitHub)
-safeclaw/tui.py
-safeclaw/templates/
+# Local UI assets (not for GitHub)
+safeclaw/templates/golden.html
 safeclaw/static/
 
 # Local Phase 4 (not for GitHub)

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeClaw Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-primary:#0a0a0a;--bg-surface:#111111;--bg-surface-hover:#1a1a1a;
+  --bg-card:#141414;--border-default:#1e1e1e;--border-accent:#d4a843;
+  --gold:#d4a843;--gold-light:#e8c45a;--gold-dim:#8a7230;
+  --text-primary:#e8e8e8;--text-secondary:#888888;--text-muted:#555555;
+  --success:#2ecc71;--danger:#e74c3c;--warning:#f39c12;--info:#3498db;
+  --radius-sm:6px;--radius-md:12px;--radius-lg:16px;
+  --shadow:0 2px 12px rgba(0,0,0,0.5);
+  --font:'Inter',-apple-system,system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','Fira Code',monospace;
+}
+html{font-size:15px}
+body{font-family:var(--font);background:var(--bg-primary);color:var(--text-primary);
+  line-height:1.6;min-height:100vh}
+a{color:var(--gold);text-decoration:none}
+a:hover{color:var(--gold-light)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg-surface)}
+::-webkit-scrollbar-thumb{background:#333;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#555}
+*{scrollbar-width:thin;scrollbar-color:#333 var(--bg-surface)}
+
+/* Nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;
+  background:var(--bg-card);border-bottom:1px solid var(--border-default);
+  display:flex;align-items:center;padding:0 24px;height:56px;
+  backdrop-filter:blur(8px)}
+.nav-brand{font-weight:700;font-size:1.15rem;color:var(--gold);
+  display:flex;align-items:center;gap:8px;margin-right:32px;white-space:nowrap}
+.nav-brand .lock{display:inline-block;animation:shimmer 3s ease-in-out infinite}
+@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.6}}
+.nav-links{display:flex;gap:4px}
+.nav-links a{padding:8px 16px;border-radius:var(--radius-sm);
+  color:var(--text-secondary);font-weight:500;font-size:.9rem;transition:all .2s}
+.nav-links a:hover{color:var(--text-primary);background:var(--bg-surface-hover)}
+.nav-links a.active{color:var(--bg-primary);background:var(--gold);font-weight:600}
+.hamburger{display:none;background:none;border:none;color:var(--text-secondary);
+  font-size:1.5rem;cursor:pointer;margin-left:auto}
+
+main{max-width:1100px;margin:0 auto;padding:72px 24px 40px}
+
+/* Page transitions */
+.page{display:none;opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s}
+.page.active{display:block;opacity:1;transform:translateY(0)}
+
+/* Cards */
+.card{background:var(--bg-card);border:1px solid var(--border-default);
+  border-radius:var(--radius-md);padding:24px;margin-bottom:20px;box-shadow:var(--shadow)}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card-header h2{font-size:1.1rem;font-weight:600;color:var(--text-primary)}
+.view-all{font-size:.85rem;color:var(--gold)}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.stat-card{background:var(--bg-card);border:1px solid var(--border-default);
+  border-top:3px solid var(--gold-dim);border-radius:var(--radius-md);
+  padding:20px;text-align:center;box-shadow:var(--shadow);transition:border-top-color .3s}
+.stat-card:hover{border-top-color:var(--gold)}
+.stat-icon{font-size:1.6rem;margin-bottom:8px}
+.stat-value{font-size:2rem;font-weight:700;color:var(--text-primary);
+  font-family:var(--font-mono)}
+.stat-label{font-size:.8rem;color:var(--text-secondary);margin-top:4px;text-transform:uppercase;
+  letter-spacing:.5px}
+
+/* Policy strip */
+.policy-strip{display:flex;gap:16px;flex-wrap:wrap;padding:16px 20px;
+  background:var(--bg-card);border:1px solid var(--border-default);
+  border-radius:var(--radius-md);margin-bottom:20px}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;
+  border-radius:var(--radius-sm);font-size:.85rem;font-weight:500}
+.badge-success{background:rgba(46,204,113,.12);color:var(--success)}
+.badge-danger{background:rgba(231,76,60,.12);color:var(--danger)}
+
+/* Tables */
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--bg-surface);text-align:left;padding:10px 14px;
+  font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--text-secondary);border-bottom:1px solid var(--border-default);cursor:default}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--border-default);
+  font-size:.9rem;color:var(--text-primary);max-width:300px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+tbody tr{transition:background .15s}
+tbody tr:nth-child(even){background:rgba(255,255,255,.01)}
+tbody tr:hover{background:var(--bg-surface-hover)}
+
+/* Status pills */
+.pill{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.8rem;font-weight:600}
+.pill-ok{background:rgba(46,204,113,.15);color:var(--success)}
+.pill-denied{background:rgba(231,76,60,.15);color:var(--danger)}
+.pill-error{background:rgba(243,156,18,.15);color:var(--warning)}
+.pill-request{background:rgba(52,152,219,.15);color:var(--info)}
+
+/* Forms */
+label{display:block;font-size:.85rem;color:var(--text-secondary);margin-bottom:6px;font-weight:500}
+input[type="text"],select,textarea{width:100%;padding:10px 14px;
+  background:var(--bg-surface);border:1px solid var(--border-default);
+  border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font);
+  font-size:.9rem;transition:border-color .2s;outline:none}
+input[type="text"]:focus,select:focus,textarea:focus{border-color:var(--gold)}
+select{cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
+select option{background:var(--bg-surface);color:var(--text-primary)}
+textarea{min-height:120px;resize:vertical;font-family:var(--font)}
+input[type="text"]::placeholder,textarea::placeholder{color:var(--text-muted)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;
+  padding:10px 20px;border:1px solid var(--border-default);border-radius:var(--radius-sm);
+  font-family:var(--font);font-size:.9rem;font-weight:600;cursor:pointer;
+  transition:all .2s;outline:none;gap:6px}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.btn-gold{background:var(--gold);color:var(--bg-primary);border-color:var(--gold)}
+.btn-gold:hover{background:var(--gold-light);box-shadow:0 0 16px rgba(212,168,67,.3)}
+.btn-gold:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.btn-success{background:var(--success);color:#fff;border-color:var(--success)}
+.btn-success:hover{background:#27ae60}
+.btn-success:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border-default)}
+.btn-ghost:hover{color:var(--text-primary);border-color:var(--text-secondary)}
+
+/* Scanner */
+.scanner-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:16px;align-items:end}
+.scanner-controls .form-group{display:flex;flex-direction:column}
+#scan-target{font-family:var(--font-mono)}
+#scan-output{background:var(--bg-surface);padding:16px;border-radius:var(--radius-sm);
+  font-family:var(--font-mono);font-size:.85rem;white-space:pre-wrap;word-break:break-word;
+  overflow-x:auto;max-height:500px;overflow-y:auto;line-height:1.5;
+  color:var(--text-primary);animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* Filter bar */
+.filter-bar{display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.filter-bar input[type="text"]{max-width:260px}
+.filter-pills{display:flex;gap:4px}
+.filter-pills .pill{cursor:pointer;padding:6px 14px;border:1px solid var(--border-default);
+  transition:all .2s}
+.filter-pills .pill:hover{border-color:var(--text-secondary)}
+.filter-pills .pill.active{background:var(--gold);color:var(--bg-primary);
+  border-color:var(--gold);font-weight:600}
+
+/* Pagination */
+.pagination{display:flex;justify-content:center;align-items:center;gap:16px;margin-top:16px;
+  padding:12px 0}
+#page-info{font-size:.9rem;color:var(--text-secondary)}
+
+/* Planner */
+.planner-buttons{display:flex;gap:8px;margin-top:12px}
+.step-card{background:var(--bg-surface);border:1px solid var(--border-default);
+  border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;transition:border-color .2s}
+.step-card.allowed{border-left:3px solid var(--success)}
+.step-card.denied{border-left:3px solid var(--danger)}
+.step-badge{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;
+  font-weight:700;padding:2px 8px;border-radius:10px;margin-bottom:8px}
+.step-badge.allowed{background:rgba(46,204,113,.15);color:var(--success)}
+.step-badge.denied{background:rgba(231,76,60,.15);color:var(--danger)}
+.step-field{margin-top:6px;font-size:.9rem}
+.step-field strong{color:var(--text-secondary);font-weight:500}
+.step-field span{color:var(--text-primary)}
+.step-field .mono{font-family:var(--font-mono);font-size:.85rem}
+.step-result{margin-top:12px;padding:12px;background:var(--bg-primary);
+  border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.8rem;
+  white-space:pre-wrap;animation:fadeIn .3s ease}
+.planner-info{padding:20px;background:rgba(52,152,219,.08);border:1px solid rgba(52,152,219,.2);
+  border-radius:var(--radius-sm);margin-top:16px}
+.planner-info h3{color:var(--info);margin-bottom:8px}
+.planner-info code{background:var(--bg-surface);padding:12px;display:block;
+  border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.85rem;
+  margin-top:8px;white-space:pre;overflow-x:auto}
+.plan-warning{padding:12px 16px;background:rgba(231,76,60,.08);
+  border:1px solid rgba(231,76,60,.2);border-radius:var(--radius-sm);
+  margin-bottom:12px;color:var(--danger);font-size:.9rem}
+
+/* Toast */
+#toast-container{position:fixed;top:68px;right:16px;z-index:200;display:flex;
+  flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:var(--radius-sm);font-size:.9rem;font-weight:500;
+  transform:translateX(120%);transition:transform .3s ease;box-shadow:var(--shadow);
+  max-width:360px}
+.toast.show{transform:translateX(0)}
+.toast-info{background:#1a2a3a;color:var(--info);border:1px solid rgba(52,152,219,.3)}
+.toast-success{background:#1a2e1a;color:var(--success);border:1px solid rgba(46,204,113,.3)}
+.toast-error{background:#2e1a1a;color:var(--danger);border:1px solid rgba(231,76,60,.3)}
+.toast-warning{background:#2e2a1a;color:var(--warning);border:1px solid rgba(243,156,18,.3)}
+
+/* Loading pulse */
+.loading{animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.text-muted{color:var(--text-muted);font-size:.85rem}
+.text-secondary{color:var(--text-secondary)}
+.mt-1{margin-top:8px}
+
+/* Responsive */
+@media(max-width:768px){
+  .hamburger{display:block}
+  .nav-links{display:none;position:absolute;top:56px;left:0;right:0;
+    flex-direction:column;background:var(--bg-card);border-bottom:1px solid var(--border-default);
+    padding:8px}
+  .nav-links.open{display:flex}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .scanner-controls{grid-template-columns:1fr}
+  .filter-bar{flex-direction:column;align-items:stretch}
+  .filter-bar input[type="text"]{max-width:100%}
+  main{padding:64px 12px 24px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand"><span>&#129408;</span><span class="lock">&#128274;</span> SafeClaw</div>
+  <div class="nav-links" id="nav-links">
+    <a href="#" data-page="dashboard" class="active">Dashboard</a>
+    <a href="#" data-page="scanner">Scanner</a>
+    <a href="#" data-page="audit">Audit</a>
+    <a href="#" data-page="planner">Planner</a>
+  </div>
+  <button class="hamburger" id="hamburger" aria-label="Toggle menu">&#9776;</button>
+</nav>
+
+<div id="toast-container"></div>
+
+<main>
+
+<!-- ==================== DASHBOARD PAGE ==================== -->
+<section id="page-dashboard" class="page active">
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon">&#128269;</div>
+      <div class="stat-value" id="stat-scans">&mdash;</div>
+      <div class="stat-label">Total Scans</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">&#128737;&#65039;</div>
+      <div class="stat-value" id="stat-denied">&mdash;</div>
+      <div class="stat-label">Denied Attempts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">&#128268;</div>
+      <div class="stat-value" id="stat-plugins">&mdash;</div>
+      <div class="stat-label">Active Plugins</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">&#9201;&#65039;</div>
+      <div class="stat-value" id="stat-last">&mdash;</div>
+      <div class="stat-label">Last Activity</div>
+    </div>
+  </div>
+
+  <div class="policy-strip" id="policy-strip"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>Recent Activity</h2>
+      <a href="#" data-page="audit" class="view-all">View all &#8594;</a>
+    </div>
+    <table>
+      <thead><tr><th>Time</th><th>Action</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody id="recent-body"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== SCANNER PAGE ==================== -->
+<section id="page-scanner" class="page">
+  <div class="card">
+    <h2 style="margin-bottom:16px">Run a Scan</h2>
+    <div class="scanner-controls">
+      <div class="form-group">
+        <label for="scan-plugin">Plugin</label>
+        <select id="scan-plugin"></select>
+      </div>
+      <div class="form-group">
+        <label for="scan-target">Target Path</label>
+        <input type="text" id="scan-target" value="./" placeholder="./">
+      </div>
+      <button class="btn btn-gold" id="btn-scan">Run Scan</button>
+    </div>
+  </div>
+  <div class="card" id="scan-results-card" style="display:none">
+    <div class="card-header">
+      <h2>Results</h2>
+      <span id="scan-timestamp" class="text-muted"></span>
+    </div>
+    <pre id="scan-output"></pre>
+  </div>
+</section>
+
+<!-- ==================== AUDIT PAGE ==================== -->
+<section id="page-audit" class="page">
+  <div class="filter-bar">
+    <input type="text" id="audit-search" placeholder="Search audit entries...">
+    <div class="filter-pills">
+      <span class="pill active" data-status="all">All</span>
+      <span class="pill" data-status="ok">OK</span>
+      <span class="pill" data-status="denied">Denied</span>
+      <span class="pill" data-status="error">Error</span>
+    </div>
+    <span id="audit-count" class="text-muted"></span>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table id="audit-table">
+      <thead><tr>
+        <th>Time</th><th>Action</th><th>Status</th><th>Detail</th>
+      </tr></thead>
+      <tbody id="audit-body"></tbody>
+    </table>
+  </div>
+  <div class="pagination">
+    <button class="btn btn-ghost" id="prev-page">&larr; Previous</button>
+    <span id="page-info">Page 1</span>
+    <button class="btn btn-ghost" id="next-page">Next &rarr;</button>
+  </div>
+</section>
+
+<!-- ==================== PLANNER PAGE ==================== -->
+<section id="page-planner" class="page">
+  <div class="card">
+    <h2 style="margin-bottom:16px">Task Planner</h2>
+    <textarea id="plan-task" placeholder="Describe your task... e.g. 'find all security issues in this project'"></textarea>
+    <div class="planner-buttons">
+      <button class="btn btn-gold" id="btn-plan">Plan</button>
+      <button class="btn btn-success" id="btn-execute" disabled>Execute</button>
+      <button class="btn btn-ghost" id="btn-clear">Clear</button>
+    </div>
+  </div>
+  <div id="plan-display"></div>
+  <div id="plan-results"></div>
+</section>
+
+</main>
+
+<script>
+/* ====================================================================
+   SafeClaw Dashboard — Client-side SPA
+   ==================================================================== */
+
+/* --- Auth --- */
+(function(){
+  const p=new URLSearchParams(location.search), t=p.get('token');
+  if(t){sessionStorage.setItem('safeclaw_token',t);
+    history.replaceState({},'',location.pathname)}
+})();
+const TOKEN=sessionStorage.getItem('safeclaw_token')||'';
+
+async function api(method,path,body){
+  const h={'Authorization':'Bearer '+TOKEN};
+  if(body)h['Content-Type']='application/json';
+  const r=await fetch(path,{method,headers:h,body:body?JSON.stringify(body):null});
+  if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));
+    throw new Error(e.detail||'Request failed')}
+  return r.json();
+}
+
+/* --- Toast --- */
+function toast(msg,type){
+  type=type||'info';
+  const c=document.getElementById('toast-container'),
+    el=document.createElement('div');
+  el.className='toast toast-'+type;el.textContent=msg;
+  c.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add('show'));
+  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),300)},3500);
+}
+
+/* --- Navigation --- */
+let currentPage='dashboard';
+function navigate(page){
+  currentPage=page;
+  document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active')});
+  document.querySelectorAll('.nav-links a').forEach(a=>a.classList.remove('active'));
+  const el=document.getElementById('page-'+page);
+  if(el)el.classList.add('active');
+  const link=document.querySelector('[data-page="'+page+'"]');
+  if(link)link.classList.add('active');
+  document.getElementById('nav-links').classList.remove('open');
+  if(page==='dashboard')loadDashboard();
+  else if(page==='scanner')loadScanner();
+  else if(page==='audit'){auditPage=1;loadAudit()}
+}
+document.querySelectorAll('[data-page]').forEach(a=>{
+  a.addEventListener('click',e=>{e.preventDefault();navigate(a.dataset.page)})
+});
+document.getElementById('hamburger').addEventListener('click',()=>{
+  document.getElementById('nav-links').classList.toggle('open')
+});
+
+/* --- Helpers --- */
+function timeAgo(iso){
+  if(!iso)return 'Never';
+  const d=Date.now()-new Date(iso).getTime(),s=Math.floor(d/1000);
+  if(s<60)return s+'s ago';const m=Math.floor(s/60);
+  if(m<60)return m+'m ago';const h=Math.floor(m/60);
+  if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';
+}
+function fmtTime(iso){return iso?iso.substring(0,19).replace('T',' '):'?'}
+function statusPill(s){
+  const cls=s==='ok'?'pill-ok':s==='denied'?'pill-denied':'pill-error';
+  return '<span class="pill '+cls+'">'+s+'</span>';
+}
+function policyBadge(label,on){
+  const icon=on?'\u2705':'\u274c',cls=on?'badge-success':'badge-danger';
+  return '<span class="badge '+cls+'">'+icon+' '+label+'</span>';
+}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+/* ==================== DASHBOARD ==================== */
+async function loadDashboard(){
+  try{
+    const[st,au]=await Promise.all([api('GET','/api/status'),api('GET','/api/audit?limit=10')]);
+    document.getElementById('stat-scans').textContent=st.total_scans;
+    document.getElementById('stat-denied').textContent=st.denied_count;
+    document.getElementById('stat-plugins').textContent=st.plugins_active+'/'+st.plugins_total;
+    document.getElementById('stat-last').textContent=st.last_entry?timeAgo(st.last_entry.timestamp):'Never';
+    const ps=document.getElementById('policy-strip');
+    ps.innerHTML=policyBadge('Shell',st.shell)+policyBadge('Network',st.network)+
+      policyBadge('Planner',st.planner_enabled)+policyBadge('Dashboard',st.dashboard_enabled);
+    const tb=document.getElementById('recent-body');
+    tb.innerHTML=au.entries.map(e=>'<tr><td>'+fmtTime(e.timestamp)+'</td><td>'+
+      esc(e.action)+'</td><td>'+statusPill(e.status)+'</td><td title="'+
+      esc(e.detail||'')+'">'+esc((e.detail||'').substring(0,80))+'</td></tr>').join('');
+  }catch(e){toast(e.message,'error')}
+}
+
+/* ==================== SCANNER ==================== */
+let pluginsLoaded=false;
+async function loadScanner(){
+  if(pluginsLoaded)return;
+  try{
+    const plugins=await api('GET','/api/plugins');
+    const sel=document.getElementById('scan-plugin');sel.innerHTML='';
+    plugins.forEach(p=>{
+      if(!p.allowed)return;
+      const o=document.createElement('option');o.value=p.name;
+      o.textContent=p.name+(p.description?' \u2014 '+p.description:'');sel.appendChild(o)
+    });
+    pluginsLoaded=true;
+  }catch(e){toast(e.message,'error')}
+}
+document.getElementById('btn-scan').addEventListener('click',async()=>{
+  const plugin=document.getElementById('scan-plugin').value,
+    target=document.getElementById('scan-target').value||'./';
+  if(!plugin){toast('Select a plugin first','warning');return}
+  const btn=document.getElementById('btn-scan');
+  btn.disabled=true;btn.textContent='Scanning...';
+  try{
+    const r=await api('POST','/api/scan',{plugin:plugin,target:target});
+    const card=document.getElementById('scan-results-card');card.style.display='block';
+    document.getElementById('scan-timestamp').textContent=new Date().toLocaleTimeString();
+    const out=document.getElementById('scan-output');
+    out.textContent=r.message;
+    toast(r.ok?'Scan completed':'Scan returned issues',r.ok?'success':'warning');
+  }catch(e){toast(e.message,'error')}finally{btn.disabled=false;btn.textContent='Run Scan'}
+});
+
+/* ==================== AUDIT ==================== */
+let auditPage=1,auditStatus='all',auditSearch='';
+async function loadAudit(){
+  try{
+    let url='/api/audit?page='+auditPage+'&limit=20&status='+auditStatus;
+    if(auditSearch)url+='&search='+encodeURIComponent(auditSearch);
+    const data=await api('GET',url);
+    document.getElementById('audit-count').textContent=data.total+' entries';
+    const tb=document.getElementById('audit-body');
+    tb.innerHTML=data.entries.map(e=>'<tr><td>'+fmtTime(e.timestamp)+'</td><td>'+
+      esc(e.action)+'</td><td>'+statusPill(e.status)+'</td><td title="'+
+      esc(e.detail||'')+'">'+esc((e.detail||'').substring(0,100))+'</td></tr>').join('');
+    document.getElementById('page-info').textContent='Page '+data.page+' of '+(data.pages||1);
+    document.getElementById('prev-page').disabled=data.page<=1;
+    document.getElementById('next-page').disabled=data.page>=data.pages;
+  }catch(e){toast(e.message,'error')}
+}
+document.getElementById('prev-page').addEventListener('click',()=>{if(auditPage>1){auditPage--;loadAudit()}});
+document.getElementById('next-page').addEventListener('click',()=>{auditPage++;loadAudit()});
+document.querySelectorAll('.filter-pills .pill').forEach(p=>{
+  p.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-pills .pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');auditStatus=p.dataset.status;auditPage=1;loadAudit()
+  })
+});
+let searchTimer;
+document.getElementById('audit-search').addEventListener('input',e=>{
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{auditSearch=e.target.value;auditPage=1;loadAudit()},300);
+});
+
+/* ==================== PLANNER ==================== */
+let currentPlan=null;
+document.getElementById('btn-plan').addEventListener('click',async()=>{
+  const task=document.getElementById('plan-task').value.trim();
+  if(!task){toast('Enter a task description first','warning');return}
+  const btn=document.getElementById('btn-plan');
+  btn.disabled=true;btn.textContent='Planning...';
+  document.getElementById('plan-display').innerHTML='';
+  document.getElementById('plan-results').innerHTML='';
+  document.getElementById('btn-execute').disabled=true;currentPlan=null;
+  try{
+    const data=await api('POST','/api/plan',{task:task});
+    currentPlan=data;
+    const rejected=new Set(data.rejected_steps||[]);
+    if(rejected.size>0){
+      document.getElementById('plan-display').innerHTML=
+        '<div class="plan-warning">\u26a0\ufe0f Some steps were rejected by policy</div>';
+    }
+    let html=document.getElementById('plan-display').innerHTML;
+    data.steps.forEach((s,i)=>{
+      const rej=!data.validated||rejected.size>0&&s.plugin&&
+        Array.from(rejected).some(r=>r.includes(s.plugin));
+      const cls=rej?'denied':'allowed';
+      html+='<div class="step-card '+cls+'" id="step-'+i+'">'+
+        '<span class="step-badge '+cls+'">'+(rej?'\u274c Denied':'\u2705 Allowed')+'</span>'+
+        '<div class="step-field"><strong>Step '+(i+1)+':</strong> <span>'+esc(s.plugin)+'</span></div>'+
+        '<div class="step-field"><strong>Target:</strong> <span class="mono">'+esc(s.target)+'</span></div>'+
+        (s.reason?'<div class="step-field"><strong>Reason:</strong> <span>'+esc(s.reason)+'</span></div>':'')+
+        '</div>';
+    });
+    document.getElementById('plan-display').innerHTML=html;
+    if(data.validated){document.getElementById('btn-execute').disabled=false;
+      toast('Plan generated with '+data.steps.length+' steps','success')}
+    else toast('Plan validation failed','error');
+  }catch(e){
+    if(e.message.includes('disabled')){
+      document.getElementById('plan-display').innerHTML=
+        '<div class="planner-info"><h3>Planner is Disabled</h3>'+
+        '<p>Enable the LLM planner in your policy.yaml to use this feature:</p>'+
+        '<code>planner:\n  enabled: true\n  backend: "ollama"\n  model: "qwen2.5-coder:14b"</code></div>';
+    }else toast(e.message,'error');
+  }finally{btn.disabled=false;btn.textContent='Plan'}
+});
+
+document.getElementById('btn-execute').addEventListener('click',async()=>{
+  if(!currentPlan||!currentPlan.validated)return;
+  const btn=document.getElementById('btn-execute');
+  btn.disabled=true;btn.textContent='Executing...';
+  try{
+    const task=document.getElementById('plan-task').value.trim();
+    const data=await api('POST','/api/plan/execute',{task:task});
+    const rd=document.getElementById('plan-results');rd.innerHTML='';
+    if(!data.executed){toast('Execution failed: '+(data.reason||'unknown'),'error');return}
+    let html='<h3 style="margin:16px 0 12px;color:var(--gold)">Execution Results</h3>';
+    data.results.forEach((r,i)=>{
+      const cls=r.ok?'allowed':'denied';
+      html+='<div class="step-card '+cls+'">'+
+        '<div class="step-field"><strong>'+esc(r.plugin)+':</strong> '+
+        '<span class="pill '+(r.ok?'pill-ok':'pill-denied')+'">'+(r.ok?'OK':'FAIL')+'</span></div>'+
+        (r.message?'<div class="step-result">'+esc(r.message)+'</div>':'')+
+        '</div>';
+    });
+    rd.innerHTML=html;
+    const ok=data.results.filter(r=>r.ok).length;
+    toast(ok+'/'+data.results.length+' steps completed','success');
+  }catch(e){toast(e.message,'error')}finally{btn.disabled=false;btn.textContent='Execute'}
+});
+
+document.getElementById('btn-clear').addEventListener('click',()=>{
+  document.getElementById('plan-task').value='';
+  document.getElementById('plan-display').innerHTML='';
+  document.getElementById('plan-results').innerHTML='';
+  document.getElementById('btn-execute').disabled=true;
+  currentPlan=null;
+});
+
+/* --- Init --- */
+if(!TOKEN){document.querySelector('main').innerHTML=
+  '<div class="card" style="text-align:center;margin-top:40px">'+
+  '<h2 style="color:var(--danger);margin-bottom:12px">Authentication Required</h2>'+
+  '<p>Access this dashboard via the URL provided by <code>safeclaw dashboard</code></p></div>'}
+else loadDashboard();
+</script>
+</body>
+</html>

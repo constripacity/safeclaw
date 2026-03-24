@@ -65,8 +65,9 @@ safeclaw/
 │   ├── mcp_server.py          # (Phase 4, local) MCP server for Claude Code
 │   ├── planner.py             # (Phase 2) LLM planner module
 │   ├── dashboard.py           # (Phase 2+3) FastAPI web UI + /api/* + /golden
-│   ├── tui.py                 # (Phase 3, local only) Textual terminal UI
+│   ├── tui.py                 # (Phase 3) Textual terminal UI (public)
 │   ├── templates/
+│   │   ├── dashboard.html     # (Phase 3) Premium SPA web dashboard (public)
 │   │   └── golden.html        # (Phase 3, local only) Gold/dark web dashboard
 │   └── plugins/
 │       ├── __init__.py
@@ -75,7 +76,12 @@ safeclaw/
 │       ├── log_summarize.py   # Summarize build logs
 │       ├── secrets_scan.py    # Detect leaked secrets
 │       ├── deps_audit.py      # Check for outdated/vulnerable deps
-│       └── repo_stats.py      # Lines of code, file types, repo health
+│       ├── repo_stats.py      # Lines of code, file types, repo health
+│       ├── license_check.py   # (Phase 5) Check license files + type detection
+│       ├── complexity_scan.py # (Phase 5) AST-based code complexity analysis
+│       └── git_history.py     # (Phase 5) Git history via .git directory reading
+├── Dockerfile                 # (Phase 5) Multi-stage Docker build
+├── .dockerignore              # (Phase 5) Docker exclusions
 ├── tests/
 │   ├── conftest.py
 │   ├── test_redaction.py
@@ -87,6 +93,7 @@ safeclaw/
 │   ├── test_audit.py
 │   ├── test_hooks.py
 │   ├── test_export.py
+│   ├── test_integration.py    # (Phase 5) End-to-end integration tests
 │   ├── test_watcher.py
 │   ├── test_projects.py
 │   ├── test_fixer.py
@@ -96,7 +103,10 @@ safeclaw/
 │   │   ├── test_secrets_scan.py
 │   │   ├── test_log_summarize.py
 │   │   ├── test_deps_audit.py
-│   │   └── test_repo_stats.py
+│   │   ├── test_repo_stats.py
+│   │   ├── test_license_check.py    # (Phase 5)
+│   │   ├── test_complexity_scan.py  # (Phase 5)
+│   │   └── test_git_history.py      # (Phase 5)
 │   └── ...
 └── examples/
     ├── sample-repo/            # Dummy repo for demo runs
@@ -106,7 +116,7 @@ safeclaw/
     └── demo.sh                 # One-liner demo script
 ```
 
-> **Note:** `safeclaw/tui.py`, `safeclaw/templates/`, `safeclaw/static/`, and all Phase 4 files (`projects.py`, `watcher.py`, `fixer.py`, `mcp_server.py` + their tests) are gitignored — they are local-only files that do not get pushed to GitHub.
+> **Note:** `safeclaw/templates/golden.html`, `safeclaw/static/`, and all Phase 4 files (`projects.py`, `watcher.py`, `fixer.py`, `mcp_server.py` + their tests) are gitignored — they are local-only files that do not get pushed to GitHub. `safeclaw/tui.py` and `safeclaw/templates/dashboard.html` are public and tracked in git.
 
 ## Coding Conventions
 - Use type hints everywhere
@@ -159,6 +169,19 @@ safeclaw/
 - [x] `safeclaw fix` — AI-powered fix suggestions via Ollama (todo/secrets/deps/all)
 - [x] `safeclaw mcp` — MCP server exposing 10 tools to Claude Code (stdio transport)
 - [x] 297 tests passing, coverage target maintained
+
+### Phase 5: Docker, New Plugins, Hardening (v0.4.0)
+- [x] `license_check` plugin — detect LICENSE files and identify license type (MIT, Apache, GPL, etc.)
+- [x] `complexity_scan` plugin — AST-based code complexity analysis (line count, params, nesting depth)
+- [x] `git_history` plugin — analyze git history by reading .git directory directly (no shell)
+- [x] `safeclaw license`, `safeclaw complexity`, `safeclaw git-history` CLI commands
+- [x] Dashboard rate limiting (60 GET/min, 30 POST/min per IP, sliding window)
+- [x] Security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP, Cache-Control)
+- [x] `/health` endpoint (no auth required) for Docker HEALTHCHECK
+- [x] Audit log rotation (`rotate_audit()`, auto-rotate at 10MB, `safeclaw audit --rotate`)
+- [x] Dockerfile (multi-stage, non-root user, HEALTHCHECK) + .dockerignore
+- [x] 23 end-to-end integration tests (tests/test_integration.py)
+- [x] 356 tests passing, CI green on Python 3.11 + 3.12
 
 ## Key Concepts Demonstrated
 This project demonstrates understanding of:

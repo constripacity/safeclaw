@@ -48,6 +48,32 @@ SafeClaw basiert auf dem Prinzip, dass **KI-Agenten niemals mehr Zugriff haben s
 
 Siehe [SECURITY.md](SECURITY.md) fur das vollstandige Bedrohungsmodell.
 
+## Benutzeroberflache
+
+SafeClaw enthalt zwei optionale UIs fur die interaktive Nutzung:
+
+### Terminal-UI
+
+Starten Sie ein Vollbild-Terminal-Dashboard mit drei Tabs (Scanner, Audit-Log, Planner), Gold/Dunkel-Design und Tastaturkurzeln:
+
+```bash
+pip install safeclaw[tui]
+safeclaw tui
+```
+
+Tastaturkurzel: F1=Todo, F2=Secrets, F3=Stats, F4=Deps, F5=Log, F6=Audit, Q=Beenden.
+
+### Web-Dashboard
+
+Starten Sie ein lokales Web-Dashboard mit Echtzeit-Scanning, Audit-Log-Anzeige und LLM-Planner-Integration:
+
+```bash
+pip install safeclaw[dashboard]
+safeclaw dashboard
+```
+
+Das Dashboard lauft auf `127.0.0.1:8321` und benotigt Bearer-Token-Authentifizierung (wird beim ersten Start generiert). Vier Seiten: Dashboard, Scanner, Audit und Planner im responsiven Gold/Dunkel-Design.
+
 ## Konfiguration
 
 SafeClaw wird uber `policy.yaml` konfiguriert:

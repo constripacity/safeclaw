@@ -57,7 +57,14 @@ _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline'",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; "
+        "connect-src 'self'; "
+        "img-src 'self' data:"
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -212,6 +219,10 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
             policy.root_path(),
             AuditEvent(action="dashboard", status="ok", detail="GET /"),
         )
+        template_path = Path(__file__).parent / "templates" / "dashboard.html"
+        if template_path.exists():
+            return template_path.read_text(encoding="utf-8")
+        # Fallback to basic inline HTML if template missing
         entries = read_audit(policy.root_path(), last_n=10)
         rows = ""
         for e in entries:
@@ -384,11 +395,21 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
         page: int = 1,
         limit: int = 20,
         status: str = "all",
+        search: str = "",
         _auth: None = Depends(require_auth),
     ) -> dict[str, Any]:
         all_entries = read_audit(policy.root_path(), last_n=1000)
         if status != "all":
             all_entries = [e for e in all_entries if e.get("status") == status]
+        if search:
+            q = search.lower()
+            all_entries = [
+                e
+                for e in all_entries
+                if q in e.get("action", "").lower()
+                or q in e.get("detail", "").lower()
+                or q in e.get("status", "").lower()
+            ]
         total = len(all_entries)
         start = (page - 1) * limit
         page_entries = all_entries[start : start + limit]
