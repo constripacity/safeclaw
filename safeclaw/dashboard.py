@@ -315,7 +315,10 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
             cls = "enabled" if allowed else "disabled"
             badge = _bool_pill(allowed)
             doc = (registry[name].__doc__ or "").split("\n")[0]
-            rows += f'<tr><td>{_esc(name)}</td><td class="{cls}">{badge}</td><td>{_esc(doc)}</td></tr>'
+            rows += (
+                f'<tr><td>{_esc(name)}</td><td class="{cls}">'
+                f"{badge}</td><td>{_esc(doc)}</td></tr>"
+            )
 
         body = f"<table><tr><th>Plugin</th><th>Allowed</th><th>Description</th></tr>{rows}</table>"
         return _page("Plugins", body)
