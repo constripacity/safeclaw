@@ -103,6 +103,13 @@ def run_plugin(policy: Policy, plugin_name: str, target_path: Path | str) -> Run
         )
         return RunResult(ok=False, message=msg)
 
+    # Sanitize path input before resolution
+    target_str = str(target_path)
+    if "\x00" in target_str:
+        msg = f"Target path contains null bytes"
+        write_audit(root, AuditEvent(action=plugin_name, status="denied", detail=msg))
+        return RunResult(ok=False, message=msg)
+
     target = Path(target_path).resolve()
     try:
         target.relative_to(root)

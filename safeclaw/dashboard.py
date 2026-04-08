@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html as _html
 import secrets
 import time
 from collections import deque
@@ -131,6 +132,11 @@ _NAV = """\
 """
 
 
+def _esc(value: object) -> str:
+    """Escape a value for safe insertion into HTML."""
+    return _html.escape(str(value))
+
+
 def _page(title: str, body: str) -> str:
     return (
         f"<!doctype html><html><head><title>{title}</title>"
@@ -226,12 +232,12 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
         entries = read_audit(policy.root_path(), last_n=10)
         rows = ""
         for e in entries:
-            ts = e.get("timestamp", "?")[:19]
+            ts = _esc(e.get("timestamp", "?")[:19])
             cls = "ok" if e.get("status") == "ok" else "error"
             rows += (
-                f"<tr><td>{ts}</td><td>{e.get('action', '?')}</td>"
-                f'<td class="{cls}">{e.get("status", "?")}</td>'
-                f"<td>{e.get('detail', '')[:80]}</td></tr>"
+                f"<tr><td>{ts}</td><td>{_esc(e.get('action', '?'))}</td>"
+                f'<td class="{cls}">{_esc(e.get("status", "?"))}</td>'
+                f"<td>{_esc(e.get('detail', '')[:80])}</td></tr>"
             )
 
         net = _bool_pill(policy.allow_network, "allowed", "denied")
@@ -264,12 +270,12 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
 
         rows = ""
         for e in page_entries:
-            ts = e.get("timestamp", "?")[:19]
+            ts = _esc(e.get("timestamp", "?")[:19])
             cls = "ok" if e.get("status") == "ok" else "error"
             rows += (
-                f"<tr><td>{ts}</td><td>{e.get('action', '?')}</td>"
-                f'<td class="{cls}">{e.get("status", "?")}</td>'
-                f"<td>{e.get('detail', '')[:100]}</td></tr>"
+                f"<tr><td>{ts}</td><td>{_esc(e.get('action', '?'))}</td>"
+                f'<td class="{cls}">{_esc(e.get("status", "?"))}</td>'
+                f"<td>{_esc(e.get('detail', '')[:100])}</td></tr>"
             )
 
         nav_links = ""
@@ -293,7 +299,7 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
         )
         policy_dict = policy.model_dump()
         formatted = yaml.dump(policy_dict, default_flow_style=False, sort_keys=False)
-        body = f"<pre>{formatted}</pre>"
+        body = f"<pre>{_esc(formatted)}</pre>"
         return _page("Policy", body)
 
     @app.get("/plugins", response_class=HTMLResponse)
@@ -309,7 +315,7 @@ def create_app(policy: Policy, *, golden: bool = False) -> FastAPI:
             cls = "enabled" if allowed else "disabled"
             badge = _bool_pill(allowed)
             doc = (registry[name].__doc__ or "").split("\n")[0]
-            rows += f'<tr><td>{name}</td><td class="{cls}">{badge}</td><td>{doc}</td></tr>'
+            rows += f'<tr><td>{_esc(name)}</td><td class="{cls}">{badge}</td><td>{_esc(doc)}</td></tr>'
 
         body = f"<table><tr><th>Plugin</th><th>Allowed</th><th>Description</th></tr>{rows}</table>"
         return _page("Plugins", body)
